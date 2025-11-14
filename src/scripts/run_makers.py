@@ -50,23 +50,23 @@ async def async_main(query: str, thread_id: Optional[str]) -> None:
             return
 
         # --- Print Results ---
-        synthesis = final_state.get("synthesis")
+        output = final_state.get("output")
         error = final_state.get("error")
 
-        if synthesis:
+        if output:
             print("\n" + "💡" * 20)
-            print("💡 FINAL SYNTHESIS:")
+            print("💡 FINAL OUTPUT:")
             print("💡" * 20)
-            print(synthesis)
+            print(output)
         elif error:
             print("\n" + "❌" * 20)
             print("❌ AN ERROR OCCURRED:")
             print("❌" * 20)
             print(error)
         else:
-            print("\n🏁 Execution finished, but no synthesis or error was found.")
+            print("\n🏁 Execution finished, but no output or error was found.")
             logger.warning(
-                f"Thread {thread_id} completed without synthesis or error message."
+                f"Thread {thread_id} completed without output or error message."
             )
 
         print("\n" + "=" * 60)

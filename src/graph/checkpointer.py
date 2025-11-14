@@ -1,8 +1,6 @@
 # src/graph/checkpointer.py
-import pickle
 import logging
-import time
-from typing import Any, Optional, AsyncIterator, List, Tuple, Union, Dict
+from typing import Any, Optional, AsyncIterator, List, Tuple, Dict
 import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
 from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint, CheckpointMetadata, CheckpointTuple
@@ -12,20 +10,10 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-class JsonPlusSerializerCompat(JsonPlusSerializer):
-    def loads(self, data: bytes) -> Any:
-        if data.startswith(b"\x80") and data.endswith(b"."):
-            try:
-                return pickle.loads(data)
-            except pickle.UnpicklingError:
-                logger.warning("Data appeared to be pickled but failed to unpickle. Falling back to JsonPlusSerializer.")
-        return super().loads(data)
-
-    def dumps(self, obj: Any) -> bytes:
-        return super().dumps(obj)
-
 class MongoDBSaver(BaseCheckpointSaver):
-    serde = JsonPlusSerializerCompat()
+    """MongoDB-based checkpoint saver for LangGraph workflows."""
+    
+    serde = JsonPlusSerializer()
 
     def __init__(
         self,
@@ -34,43 +22,46 @@ class MongoDBSaver(BaseCheckpointSaver):
         collection_name: str = settings.LANGGRAPH_CHECKPOINTS_COLLECTION,
     ):
         super().__init__(serde=self.serde)
-        self.mongo_uri = mongo_uri 
-        self.db_name = db_name 
-        self.collection_name = collection_name 
+        self.mongo_uri = mongo_uri
+        self.db_name = db_name
+        self.collection_name = collection_name
         
         self.client = AsyncIOMotorClient(mongo_uri)
         self.db = self.client[db_name]
         self.collection = self.db[collection_name]
-        logger.info(f"MongoDBSaver initialized for database '{db_name}', collection '{collection_name}'.")
+        logger.info(f"MongoDBSaver initialized: {db_name}.{collection_name}")
 
     async def aget_tuple(self, config: RunnableConfig) -> Optional[CheckpointTuple]:
-        if not (thread_id := config["configurable"].get("thread_id")):
+        """Retrieve a checkpoint tuple from MongoDB."""
+        configurable = config.get("configurable", {})
+        thread_id = configurable.get("thread_id")
+        if not thread_id:
             raise ValueError("thread_id must be present in config['configurable']")
         
         query: Dict[str, Any] = {"thread_id": thread_id}
-        if thread_ts := config["configurable"].get("thread_ts"):
+        if thread_ts := configurable.get("thread_ts"):
             query["thread_ts"] = thread_ts
-        
-        sort_order = [("thread_ts", -1)] if "thread_ts" not in query else None
+            sort_order = None
+        else:
+            sort_order = [("thread_ts", -1)]  # Get latest if no thread_ts specified
         
         doc = await self.collection.find_one(query, sort=sort_order)
         if not doc:
-            logger.debug(f"No checkpoint found for config: {config}")
             return None
 
         checkpoint = self.serde.loads(doc["checkpoint"])
         metadata = self.serde.loads(doc["metadata"])
-        parent_config_val: Optional[RunnableConfig] = None
-        if doc.get("parent_ts"):
-            parent_config_val = {
+        
+        parent_config = None
+        if parent_ts := doc.get("parent_ts"):
+            parent_config = {
                 "configurable": {
-                    "thread_id": doc["thread_id"],
-                    "thread_ts": doc["parent_ts"],
+                    "thread_id": thread_id,
+                    "thread_ts": parent_ts,
                 }
             }
         
-        logger.debug(f"Checkpoint retrieved for thread_id: {thread_id}, thread_ts: {doc['thread_ts']}")
-        return CheckpointTuple(config, checkpoint, metadata, parent_config_val)
+        return CheckpointTuple(config, checkpoint, metadata, parent_config)
 
     async def alist(
         self,
@@ -80,15 +71,16 @@ class MongoDBSaver(BaseCheckpointSaver):
         before: Optional[RunnableConfig] = None,
         limit: Optional[int] = None,
     ) -> AsyncIterator[CheckpointTuple]:
+        """List checkpoints matching the given criteria."""
         query: Dict[str, Any] = {}
-        if config is not None and (thread_id := config.get("configurable", {}).get("thread_id")):
+        
+        if config and (thread_id := config.get("configurable", {}).get("thread_id")):
             query["thread_id"] = thread_id
         
         if filter:
-            for key, value in filter.items():
-                query[f"metadata.{key}"] = value
+            query.update({f"metadata.{k}": v for k, v in filter.items()})
 
-        if before is not None and (thread_ts := before.get("configurable", {}).get("thread_ts")):
+        if before and (thread_ts := before.get("configurable", {}).get("thread_ts")):
             query["thread_ts"] = {"$lt": thread_ts}
 
         cursor = self.collection.find(query).sort("thread_ts", -1)
@@ -96,7 +88,7 @@ class MongoDBSaver(BaseCheckpointSaver):
             cursor = cursor.limit(limit)
 
         async for doc in cursor:
-            doc_config_val: RunnableConfig = {
+            doc_config: RunnableConfig = {
                 "configurable": {
                     "thread_id": doc["thread_id"],
                     "thread_ts": doc["thread_ts"],
@@ -104,15 +96,17 @@ class MongoDBSaver(BaseCheckpointSaver):
             }
             checkpoint = self.serde.loads(doc["checkpoint"])
             metadata = self.serde.loads(doc["metadata"])
-            parent_config_val: Optional[RunnableConfig] = None
-            if doc.get("parent_ts"):
-                parent_config_val = {
+            
+            parent_config = None
+            if parent_ts := doc.get("parent_ts"):
+                parent_config = {
                     "configurable": {
                         "thread_id": doc["thread_id"],
-                        "thread_ts": doc["parent_ts"],
+                        "thread_ts": parent_ts,
                     }
                 }
-            yield CheckpointTuple(doc_config_val, checkpoint, metadata, parent_config_val)
+            
+            yield CheckpointTuple(doc_config, checkpoint, metadata, parent_config)
 
     async def aput(
         self,
@@ -121,58 +115,43 @@ class MongoDBSaver(BaseCheckpointSaver):
         metadata: CheckpointMetadata,
         parent_config: Optional[RunnableConfig] = None
     ) -> RunnableConfig:
-        if not (thread_id := config.get("configurable", {}).get("thread_id")):
+        """Save a checkpoint to MongoDB."""
+        configurable = config.get("configurable", {})
+        thread_id = configurable.get("thread_id")
+        if not thread_id:
             raise ValueError("thread_id must be present in config['configurable']")
-        if not (thread_ts := checkpoint.get("id")):
+        
+        thread_ts = checkpoint.get("id")
+        if not thread_ts:
             raise ValueError("checkpoint must have an 'id' (thread_ts)")
 
-        doc_to_save = {
+        doc_to_save: Dict[str, Any] = {
             "thread_id": thread_id,
             "thread_ts": thread_ts,
             "checkpoint": self.serde.dumps(checkpoint),
             "metadata": self.serde.dumps(metadata),
         }
 
-        parent_ts_value: Optional[str] = None
-        if parent_config is not None:
-            if isinstance(parent_config, dict):
-                parent_configurable_dict = parent_config.get("configurable")
-                if isinstance(parent_configurable_dict, dict):
-                    parent_ts_value = parent_configurable_dict.get("thread_ts")
-                    if not parent_ts_value:
-                        logger.debug(f"parent_config provided 'configurable' but 'thread_ts' was missing or None. Config: {parent_config}")
-                else:
-                    # Attempt to extract from parent_config itself if it looks like a raw checkpoint/state
-                    alt_parent_ts = parent_config.get("id") # Checkpoint objects have 'id' as thread_ts
-                    if isinstance(alt_parent_ts, str) and alt_parent_ts:
-                        parent_ts_value = alt_parent_ts
-                        logger.info(f"parent_config did not have 'configurable.thread_ts', but found 'id': {alt_parent_ts} in parent_config itself. Using it as parent_ts. parent_config: {parent_config}")
-                    else:
-                        logger.warning(f"parent_config provided, but its 'configurable' key was missing/not a dict, AND 'id' key was not found/valid in parent_config itself. parent_config: {parent_config}")
-            else:
-                logger.warning(f"parent_config was provided but is not a dictionary. Type: {type(parent_config)}, Value: {parent_config}")
+        # Extract parent_ts from parent_config if provided
+        parent_ts = None
+        if parent_config:
+            parent_configurable = parent_config.get("configurable", {})
+            parent_ts = parent_configurable.get("thread_ts") or parent_config.get("id")
         
-        if parent_ts_value:
-            doc_to_save["parent_ts"] = parent_ts_value
-        else:
-            # Fallback logic for parent_ts if not derived from parent_config
-            # This part might need review based on LangGraph's exact expectations for parent_ts
-            current_config_thread_ts = config.get("configurable", {}).get("thread_ts")
-            if not parent_config and current_config_thread_ts and current_config_thread_ts != thread_ts:
-                # This case implies we are saving a new checkpoint (thread_ts) for an existing thread (current_config_thread_ts was the previous one)
-                # and no explicit parent_config was given by LangGraph for this put.
-                doc_to_save["parent_ts"] = current_config_thread_ts
-                logger.debug(f"Fallback: Used thread_ts from 'config' ({current_config_thread_ts}) as parent_ts. parent_config was None, and config.thread_ts differs from checkpoint.id.")
-            elif parent_config is None: # Explicitly no parent_config and no differing thread_ts in current config
-                 logger.debug(f"No parent_ts set. parent_config is None, and current config.thread_ts is same as checkpoint.id or absent.")
-            # If parent_config was provided but didn't yield a parent_ts_value (e.g., malformed), we log a warning above and don't set parent_ts here.
+        # Fallback: use current config's thread_ts if different from checkpoint id
+        if not parent_ts:
+            current_thread_ts = configurable.get("thread_ts")
+            if current_thread_ts and current_thread_ts != thread_ts:
+                parent_ts = current_thread_ts
+        
+        if parent_ts:
+            doc_to_save["parent_ts"] = parent_ts
 
         await self.collection.update_one(
             {"thread_id": thread_id, "thread_ts": thread_ts},
             {"$set": doc_to_save},
             upsert=True,
         )
-        logger.info(f"Checkpoint saved for thread_id: {thread_id}, thread_ts: {thread_ts}")
         
         return {
             "configurable": {
@@ -187,103 +166,82 @@ class MongoDBSaver(BaseCheckpointSaver):
         writes: List[Tuple[str, Any]],
         task_id: str,
     ) -> None:
-        configurable_config = config.get("configurable")
-        if not isinstance(configurable_config, dict):
-            # This case should ideally not happen if LangGraph provides a valid config structure.
-            logger.error(f"`aput_writes` called with invalid config (missing 'configurable' dict). Writes for task {task_id} not applied. Config: {config}")
-            raise ValueError("Config must contain a 'configurable' dictionary.")
-
-        thread_id = configurable_config.get("thread_id")
+        """Apply writes to an existing checkpoint."""
+        configurable = config.get("configurable", {})
+        if not isinstance(configurable, dict):
+            raise ValueError("Config must contain a 'configurable' dictionary")
+        
+        thread_id = configurable.get("thread_id")
         if not thread_id:
-            logger.error(f"`aput_writes` called without thread_id in config. Writes for task {task_id} not applied. Config: {config}")
             raise ValueError("thread_id must be present in config['configurable']")
         
-        thread_ts = configurable_config.get("thread_ts")
         query: Dict[str, Any] = {"thread_id": thread_id}
         sort_order = None
-
-        if thread_ts:
-            query["thread_ts"] = thread_ts
-            logger.debug(f"`aput_writes` targeting specific checkpoint version: thread_id={thread_id}, thread_ts={thread_ts}")
-        else:
-            # If thread_ts is not provided, target the latest checkpoint for the thread_id
-            sort_order = [("thread_ts", -1)]
-            logger.info(f"`aput_writes` called for thread_id {thread_id} without specific thread_ts. Targeting latest checkpoint for writes for task {task_id}.")
-
-        # Fetch the document to update
-        # If sort_order is specified, find_one will get the latest if thread_ts wasn't in query
-        doc = await self.collection.find_one(query, sort=sort_order)
-
-        if not doc:
-            target_desc = f"thread_id={thread_id}, thread_ts={thread_ts}" if thread_ts else f"latest for thread_id={thread_id}"
-            logger.error(f"`aput_writes` called for {target_desc}, but no matching checkpoint found. Writes for task {task_id} not applied. Config: {config}")
-            return # Nothing to update
         
-        # The actual thread_ts of the document we are about to update (could be latest if input thread_ts was None)
-        effective_thread_ts = doc["thread_ts"]
+        if thread_ts := configurable.get("thread_ts"):
+            query["thread_ts"] = thread_ts
+        else:
+            sort_order = [("thread_ts", -1)]  # Get latest if no thread_ts specified
+
+        doc = await self.collection.find_one(query, sort=sort_order)
+        if not doc:
+            logger.warning(f"No checkpoint found for writes (task_id: {task_id})")
+            return
 
         try:
-            current_checkpoint: Checkpoint = self.serde.loads(doc["checkpoint"])
+            checkpoint: Checkpoint = self.serde.loads(doc["checkpoint"])
             
-            if "channel_values" not in current_checkpoint or not isinstance(current_checkpoint["channel_values"], dict):
-                current_checkpoint["channel_values"] = {}
-            else:
-                current_checkpoint["channel_values"] = dict(current_checkpoint["channel_values"])
-
-            if "channel_versions" not in current_checkpoint or not isinstance(current_checkpoint["channel_versions"], dict):
-                current_checkpoint["channel_versions"] = {}
-            else:
-                current_checkpoint["channel_versions"] = dict(current_checkpoint["channel_versions"])
-
+            # Ensure channel structures exist
+            checkpoint.setdefault("channel_values", {})
+            checkpoint.setdefault("channel_versions", {})
+            
+            # Apply writes
             for channel, value in writes:
-                current_checkpoint["channel_values"][channel] = value
-                current_checkpoint["channel_versions"][channel] = current_checkpoint["channel_versions"].get(channel, 0) + 1
+                checkpoint["channel_values"][channel] = value
+                checkpoint["channel_versions"][channel] = checkpoint["channel_versions"].get(channel, 0) + 1
             
-            current_checkpoint["ts"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            checkpoint["ts"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             
-            updated_checkpoint_bytes = self.serde.dumps(current_checkpoint)
-            
-            # Update the specific document identified by its _id or by thread_id and effective_thread_ts
             await self.collection.update_one(
-                {"_id": doc["_id"]}, # Safest to update by _id if available
-                {"$set": {"checkpoint": updated_checkpoint_bytes}}
+                {"_id": doc["_id"]},
+                {"$set": {"checkpoint": self.serde.dumps(checkpoint)}}
             )
-            logger.info(f"Persisted {len(writes)} writes to checkpoint version {effective_thread_ts} for thread_id {thread_id}, task_id {task_id}.")
 
         except Exception as e:
-            logger.error(f"Error persisting writes for thread_id {thread_id} (targeting version {effective_thread_ts}), task_id {task_id}: {e}", exc_info=True)
+            logger.error(f"Error persisting writes (task_id: {task_id}): {e}", exc_info=True)
 
     async def aclose(self):
+        """Close the MongoDB client connection."""
         if self.client:
             self.client.close()
-            logger.info("MongoDB client for MongoDBSaver closed.")
 
     def __getstate__(self):
+        """Prepare instance for pickling (exclude MongoDB connections)."""
         state = self.__dict__.copy()
-        if 'client' in state: del state['client']
-        if 'db' in state: del state['db']
-        if 'collection' in state: del state['collection']
+        for key in ['client', 'db', 'collection']:
+            state.pop(key, None)
         return state
 
     def __setstate__(self, state):
+        """Reinitialize MongoDB connections after unpickling."""
         self.__dict__.update(state)
         self.client = AsyncIOMotorClient(self.mongo_uri)
         self.db = self.client[self.db_name]
         self.collection = self.db[self.collection_name]
-        logger.debug("MongoDBSaver client reinitialized after unpickling.")
 
 
 if __name__ == "__main__":
     import asyncio
+    import time
     from langchain_core.messages import HumanMessage, AIMessage 
 
     async def test_checkpointer():
         from config.logging_config import setup_logging 
         setup_logging(level="DEBUG")
-        logger.info("--- Testing MongoDBSaver (with robust parent_config access) ---")
+        logger.info("--- Testing MongoDBSaver ---")
 
-        if not settings.MONGODB_URI or "localhost" in settings.MONGODB_URI:
-            logger.warning(f"MONGODB_URI is '{settings.MONGODB_URI}'. Ensure MongoDB is running for full checkpointer testing.")
+        if not settings.MONGODB_URI:
+            logger.warning("MONGODB_URI not configured. Ensure MongoDB is running for testing.")
 
         test_collection_name = f"test_checkpoints_{int(time.time())}" 
         logger.info(f"Using test collection: {test_collection_name}")

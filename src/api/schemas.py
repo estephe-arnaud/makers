@@ -81,8 +81,7 @@ class SwarmResponse(BaseModel):
     Attributes:
         thread_id: Unique identifier for the conversation
         user_query: Original user query
-        synthesis_output: Final synthesized response
-        research_plan: Plan generated for research
+        final_output: Final response from the RAG agent
         full_message_history: Complete conversation history
         error_message: Any error that occurred
         final_state_keys: Keys present in the final state
@@ -90,8 +89,7 @@ class SwarmResponse(BaseModel):
     """
     thread_id: str = Field(..., description="Unique identifier for the conversation")
     user_query: str = Field(..., description="Original user query")
-    synthesis_output: Optional[str] = Field(None, description="Final synthesized response")
-    research_plan: Optional[str] = Field(None, description="Plan generated for research")
+    final_output: Optional[str] = Field(None, description="Final response from the RAG agent")
     # On pourrait choisir de retourner plus ou moins d'informations de l'état final
     # Par exemple, les messages complets si le client veut les afficher
     full_message_history: Optional[List[SwarmOutputMessage]] = Field(

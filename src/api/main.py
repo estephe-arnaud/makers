@@ -209,8 +209,7 @@ async def invoke_makers_endpoint(request_data: SwarmQueryRequest = Body(...)):
         response_data = SwarmResponse(
             thread_id=thread_id,
             user_query=final_graph_state_dict.get("user_query", query),
-            synthesis_output=final_graph_state_dict.get("synthesis_output"),
-            research_plan=final_graph_state_dict.get("research_plan"),
+            final_output=final_graph_state_dict.get("final_output"),
             full_message_history=formatted_messages,
             error_message=final_graph_state_dict.get("error_message"),
             final_state_keys=list(final_graph_state_dict.keys())
@@ -218,7 +217,7 @@ async def invoke_makers_endpoint(request_data: SwarmQueryRequest = Body(...)):
         
         logger.info(
             f"Successfully processed query for thread_id: {thread_id}. "
-            f"Synthesis started with: {str(response_data.synthesis_output)[:50]}..."
+            f"Final output started with: {str(response_data.final_output)[:50] if response_data.final_output else 'None'}..."
         )
         return response_data
 

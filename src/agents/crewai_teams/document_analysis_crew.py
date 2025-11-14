@@ -1,15 +1,13 @@
 """
 Document Analysis Crew Module
 
-This module implements a CrewAI-based document analysis system that uses a team of specialized
-agents to perform in-depth analysis of scientific documents. The crew consists of:
-- Information Extractor: Extracts key structured information
-- Section Summarizer: Provides concise summaries of document sections
-- Critical Analyst: Performs critical analysis of the research
-- Report Compiler: Compiles the final analytical report
+This module implements a CrewAI-based document analysis system that uses a complementary
+two-agent architecture to perform comprehensive analysis of scientific documents. The crew consists of:
+- Deep Document Analyst: Extracts structured information and performs critical analysis
+- Research Report Synthesizer: Synthesizes the analysis into a comprehensive final report
 
-The module handles document analysis through a sequential process where each agent
-contributes to the final comprehensive report.
+The module implements a sequential pipeline with clear separation of concerns, where each agent
+is optimized for its specific role (analytical precision vs. creative synthesis).
 """
 
 import os
@@ -27,8 +25,12 @@ logger = logging.getLogger(__name__)
 
 class DocumentAnalysisCrew:
     """
-    A CrewAI-based document analysis system that coordinates multiple specialized agents
-    to perform comprehensive analysis of scientific documents.
+    A CrewAI-based document analysis system implementing a complementary two-agent architecture
+    for comprehensive analysis of scientific documents.
+    
+    This design leverages separation of concerns: analytical extraction and critical evaluation
+    are handled by one agent, while synthesis and report generation are handled by another,
+    each optimized with appropriate LLM temperature settings for their respective tasks.
     """
     
     def __init__(self, document_id: str, document_content: str, research_focus: str):
@@ -45,56 +47,68 @@ class DocumentAnalysisCrew:
         self.research_focus = research_focus
         
         try:
-            self.llm = get_llm(temperature=0.2)
+            # Deep Document Analyst: Lower temperature for analytical precision and factual accuracy
+            self.llm_analyst = get_llm(temperature=0.2)
+            # Research Report Synthesizer: Higher temperature for creative synthesis and narrative flow
+            self.llm_synthesizer = get_llm(temperature=0.4)
         except ValueError as e:
             logger.error(f"Failed to initialize LLM: {e}")
             logger.warning("Falling back to CrewAI's default LLM if OPENAI_API_KEY is set")
-            self.llm = None
+            self.llm_analyst = None
+            self.llm_synthesizer = None
 
     def _create_agents(self) -> List[Agent]:
         """
-        Create the team of specialized agents for document analysis.
+        Create the complementary two-agent team for document analysis.
+        
+        The architecture implements clear separation of concerns:
+        - Analytical agent focuses on extraction and critical evaluation
+        - Synthesizer agent focuses on report compilation and narrative structure
         
         Returns:
-            List of configured CrewAI agents
+            List of configured CrewAI agents with specialized roles
         """
-        info_extractor = Agent(
-            role='Expert Information Extractor for Scientific Papers',
-            goal=f"Extract key structured information from the paper focusing on '{self.research_focus}'",
-            backstory="Expert in parsing scientific literature and identifying core research components",
+        # Agent 1: Deep Document Analyst
+        # Combines extraction and critical analysis for technical depth
+        deep_analyst = Agent(
+            role='Deep Document Analyst',
+            goal=(
+                f"Extract structured information and perform critical analysis of the document "
+                f"focusing on '{self.research_focus}'. Your analysis should cover methodology, "
+                f"datasets, results, limitations, strengths, weaknesses, and key contributions."
+            ),
+            backstory=(
+                "You are an experienced researcher with deep expertise in scientific literature analysis. "
+                "You excel at extracting structured information from complex documents and performing "
+                "rigorous critical evaluation. Your analytical skills help identify key innovations, "
+                "methodological strengths, and potential limitations in scientific research."
+            ),
             verbose=True,
             allow_delegation=False,
-            llm=self.llm
+            llm=self.llm_analyst
         )
         
-        section_summarizer = Agent(
-            role='Scientific Section Summarizer',
-            goal=f"Provide concise summaries of document sections focusing on '{self.research_focus}'",
-            backstory="Skilled in distilling complex scientific sections into clear summaries",
+        # Agent 2: Research Report Synthesizer
+        # Transforms technical analysis into a well-structured, accessible report
+        report_synthesizer = Agent(
+            role='Research Report Synthesizer',
+            goal=(
+                f"Synthesize the technical analysis into a comprehensive, well-structured report "
+                f"for document {self.document_id} focusing on '{self.research_focus}'. "
+                f"Organize the information clearly and make it accessible."
+            ),
+            backstory=(
+                "You are a senior scientific writer and editor with expertise in synthesizing "
+                "complex technical analyses into clear, comprehensive reports. You excel at "
+                "structuring information logically, creating coherent narratives, and making "
+                "sophisticated research accessible to diverse audiences."
+            ),
             verbose=True,
             allow_delegation=False,
-            llm=self.llm
+            llm=self.llm_synthesizer
         )
         
-        critical_analyst = Agent(
-            role='Critical Analyst of Scientific Research',
-            goal=f"Analyze the paper's strengths, weaknesses, and contributions regarding '{self.research_focus}'",
-            backstory="Experienced peer reviewer with expertise in scientific rigor and innovation",
-            verbose=True,
-            allow_delegation=False,
-            llm=self.llm
-        )
-        
-        report_compiler = Agent(
-            role='Lead Research Report Compiler',
-            goal=f"Compile a comprehensive report for document {self.document_id} focusing on '{self.research_focus}'",
-            backstory="Senior research lead responsible for synthesizing detailed analyses into final reports",
-            verbose=True,
-            allow_delegation=True,
-            llm=self.llm
-        )
-        
-        return [info_extractor, section_summarizer, critical_analyst, report_compiler]
+        return [deep_analyst, report_synthesizer]
 
     def _create_tasks(self, agents: List[Agent]) -> List[Task]:
         """
@@ -106,54 +120,62 @@ class DocumentAnalysisCrew:
         Returns:
             List of configured CrewAI tasks
         """
-        info_extractor, section_summarizer, critical_analyst, report_compiler = agents
+        deep_analyst, report_synthesizer = agents
         
-        task_extract_info = Task(
+        # Task 1: Deep Analysis (Extraction + Critical Analysis)
+        task_deep_analysis = Task(
             description=(
-                f"Analyze document {self.document_id} focusing on '{self.research_focus}'.\n"
-                "Extract: methodology, datasets, results, limitations.\n"
-                f"Content:\n---\n{self.document_content}\n---"
-            ),
-            expected_output="Structured list of extracted information",
-            agent=info_extractor
-        )
-        
-        task_summarize_sections = Task(
-            description=(
-                f"Summarize main sections of document {self.document_id} focusing on '{self.research_focus}'.\n"
-                f"Content:\n---\n{self.document_content}\n---"
-            ),
-            expected_output="Concise summaries of document sections",
-            agent=section_summarizer,
-            context=[task_extract_info]
-        )
-        
-        task_critical_analysis = Task(
-            description=(
-                f"Analyze document {self.document_id} focusing on '{self.research_focus}'.\n"
-                "Use previous task outputs to identify strengths, weaknesses, and contributions."
-            ),
-            expected_output="Critical analysis of the paper's key aspects",
-            agent=critical_analyst,
-            context=[task_extract_info, task_summarize_sections]
-        )
-        
-        task_compile_report = Task(
-            description=(
-                f"Compile final report for document {self.document_id} focusing on '{self.research_focus}'.\n"
-                "Integrate all previous analyses into a comprehensive report."
+                f"Perform a comprehensive analysis of document {self.document_id} focusing on '{self.research_focus}'.\n\n"
+                f"**Document Content:**\n---\n{self.document_content}\n---\n\n"
+                f"**Your tasks:**\n"
+                f"1. Extract structured information:\n"
+                f"   - Methodology and experimental design\n"
+                f"   - Datasets and data sources\n"
+                f"   - Key results and findings\n"
+                f"   - Limitations and constraints\n"
+                f"2. Perform critical analysis:\n"
+                f"   - Identify strengths and innovations\n"
+                f"   - Evaluate weaknesses and potential issues\n"
+                f"   - Assess contributions and significance\n"
+                f"   - Highlight key concepts and techniques\n\n"
+                f"Focus specifically on aspects related to: {self.research_focus}"
             ),
             expected_output=(
-                f"Comprehensive report covering:\n"
-                "1. Key Information (Methodology, Results, Limitations)\n"
-                "2. Section Summaries\n"
-                "3. Critical Analysis"
+                "A comprehensive technical analysis containing:\n"
+                "- Structured extraction of methodology, datasets, results, and limitations\n"
+                "- Critical evaluation of strengths, weaknesses, and contributions\n"
+                "- Identification of key innovations and significant findings"
             ),
-            agent=report_compiler,
-            context=[task_extract_info, task_summarize_sections, task_critical_analysis]
+            agent=deep_analyst
         )
         
-        return [task_extract_info, task_summarize_sections, task_critical_analysis, task_compile_report]
+        # Task 2: Report Synthesis (Compilation)
+        task_synthesize_report = Task(
+            description=(
+                f"Synthesize the technical analysis into a comprehensive, well-structured report "
+                f"for document {self.document_id} focusing on '{self.research_focus}'.\n\n"
+                f"**Instructions:**\n"
+                f"1. Review the detailed technical analysis from the previous task\n"
+                f"2. Organize the information into a clear, logical structure\n"
+                f"3. Create a comprehensive report that includes:\n"
+                f"   - Executive Summary: Brief overview of key findings\n"
+                f"   - Key Information: Methodology, datasets, results, limitations\n"
+                f"   - Critical Analysis: Strengths, weaknesses, contributions\n"
+                f"   - Key Insights: Innovations, significant findings, and implications\n"
+                f"4. Ensure the report is well-written, accessible, and addresses the research focus: {self.research_focus}"
+            ),
+            expected_output=(
+                "A comprehensive, well-structured analytical report covering:\n"
+                "1. Executive Summary\n"
+                "2. Key Information (Methodology, Results, Limitations)\n"
+                "3. Critical Analysis (Strengths, Weaknesses, Contributions)\n"
+                "4. Key Insights and Implications"
+            ),
+            agent=report_synthesizer,
+            context=[task_deep_analysis]
+        )
+        
+        return [task_deep_analysis, task_synthesize_report]
 
     def run(self) -> str:
         """
@@ -162,7 +184,7 @@ class DocumentAnalysisCrew:
         Returns:
             Final analytical report or error message
         """
-        if self.llm is None and not os.environ.get("OPENAI_API_KEY"):
+        if self.llm_analyst is None and not os.environ.get("OPENAI_API_KEY"):
             error_msg = "LLM not configured. Set API keys via .env or OPENAI_API_KEY"
             logger.error(error_msg)
             return f"Error: {error_msg}"
