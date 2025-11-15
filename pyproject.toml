@@ -25,15 +25,15 @@ openai = "^1.28.0" # OpenAI Python client
 tiktoken = "^0.7.0" # OpenAI tokenizer
 
 # --- LangChain Family ---
-langchain-core = "^0.2.1"
-langchain-openai = "^0.1.8"
-langchain-community = "^0.2.1"
-langchain = "^0.2.1"
-langchain-ollama = "^0.1.9"
-langchain-huggingface = "^0.0.3"
-langchain-groq = "^0.1.0"
+langchain-core = "^0.3.0"
+langchain-openai = "^0.2.0"
+langchain-community = "^0.3.0"
+langchain = "^0.3.0"
+langchain-ollama = "^0.2.0"
+langchain-huggingface = "^0.1.0"
+langchain-groq = "^0.2.0"
 langchain-google-genai = "^2.0.0"
-langgraph = "^0.1.1"
+langgraph = "^0.2.0"
 
 # --- LlamaIndex Family ---
 llama-index = "^0.10.42"
@@ -51,11 +51,11 @@ motor = "^3.4.0"   # Async driver for MongoDB
 wandb = "^0.17.0" # Weights & Biases
 
 # --- Agent Frameworks ---
-crewai = "^0.35.8"
+crewai = "^1.4.1"  # Latest version with langchain 0.3.x support
 
 # --- Web API (FastAPI) ---
 fastapi = "^0.111.0"
-uvicorn = {extras = ["standard"], version = "^0.29.0"}
+uvicorn = {extras = ["standard"], version = "^0.31.0"}
 
 [tool.poetry.group.dev.dependencies]
 jupyter = "^1.0.0"

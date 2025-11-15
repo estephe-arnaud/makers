@@ -194,7 +194,7 @@ src/
 
 - **Python 3.11+**
 - **Poetry**: Dependency management
-- **MongoDB**: Atlas or local instance
+- **MongoDB**: Atlas (recommended) or local instance
 - **Groq API Key** (default): Get your free API key from [console.groq.com](https://console.groq.com)
 
 ### Installation
@@ -239,7 +239,97 @@ src/
    poetry install
    ```
 
-4. **(Optional) Connect to Weights & Biases**:
+4. **Set up MongoDB Atlas** (recommended) or use local MongoDB:
+   
+   **Option A: MongoDB Atlas (Cloud - Recommended)**
+   
+   1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register)
+   2. Create a new cluster (free tier: M0)
+   3. Create a database user:
+      - Go to **Database Access** → **Add New Database User**
+      - Choose **Password** authentication
+      - Save the username and password securely
+   4. Configure network access:
+      - Go to **Network Access** → **Add IP Address**
+      - For development: click **Allow Access from Anywhere** (0.0.0.0/0)
+      - For production: add your specific IP addresses
+   5. Get your connection string:
+      - Go to **Clusters** → click **Connect** on your cluster
+      - Choose **Connect your application**
+      - Copy the connection string (format: `mongodb+srv://<username>:<password>@cluster.mongodb.net/`)
+   6. Update your `.env` file:
+      ```env
+      MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/
+      MONGO_DATABASE_NAME=makers_db
+      ```
+      Replace `<username>` and `<password>` with your database user credentials.
+   
+   **Option B: Local MongoDB**
+   
+   If you prefer to run MongoDB locally:
+   
+   **Using Docker:**
+   ```bash
+   # Simple way (data persists as long as container exists)
+   docker run -d \
+     --name mongodb \
+     -p 27017:27017 \
+     mongo:latest
+   
+   # Stop container (data is preserved in container)
+   docker stop mongodb
+   
+   # Start container again (data is still there)
+   docker start mongodb
+   
+   # ⚠️ WARNING: Removing container deletes all data!
+   docker rm mongodb  # Data is lost!
+   ```
+   
+   **Using Docker with volume (recommended for production):**
+   ```bash
+   # Create a volume for data persistence (survives container removal)
+   docker volume create mongodb_data
+   
+   # Run MongoDB with volume mount
+   docker run -d \
+     --name mongodb \
+     -p 27017:27017 \
+     -v mongodb_data:/data/db \
+     mongo:latest
+   
+   # Now you can safely remove container without losing data
+   docker stop mongodb
+   docker rm mongodb
+   # Data is preserved in volume 'mongodb_data'
+   
+   # Recreate container with same volume
+   docker run -d \
+     --name mongodb \
+     -p 27017:27017 \
+     -v mongodb_data:/data/db \
+     mongo:latest
+   # All your data is back!
+   ```
+   
+   **Using Homebrew (macOS):**
+   ```bash
+   brew tap mongodb/brew
+   brew install mongodb-community
+   brew services start mongodb-community
+   ```
+   
+   Then use in your `.env`:
+   ```env
+   MONGODB_URI=mongodb://localhost:27017/
+   MONGO_DATABASE_NAME=makers_db
+   ```
+   
+   **Important:** 
+   - **Without volume**: Data persists when you `stop`/`start` the container, but is **lost** if you `rm` (remove) the container.
+   - **With volume**: Data persists even when you remove the container. Use volumes for production or when you need to recreate containers.
+
+5. **(Optional) Connect to Weights & Biases**:
    ```bash
    poetry run wandb login
    ```
