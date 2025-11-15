@@ -5,313 +5,187 @@
 
 ## 🚀 Overview
 
-**MAKERS** is an advanced multi-agent research system that autonomously searches, analyzes, and synthesizes information from complex document corpora (e.g., scientific research papers). It combines the power of Large Language Models (LLMs) with strategic tool orchestration, leveraging LangGraph for workflow orchestration, LlamaIndex for advanced Retrieval Augmented Generation (RAG), and MongoDB for vector storage and persistent state management.
+**MAKERS** is an advanced autonomous research system that combines Large Language Models (LLMs) with strategic tool orchestration. It leverages **LangGraph** for workflow orchestration, **LlamaIndex** for Retrieval Augmented Generation (RAG), and **MongoDB** for vector storage and persistent state management.
 
 ### Core Capabilities
 
-*   **Intelligent Document Ingestion**: Automated pipeline for downloading, parsing, chunking, and embedding scientific papers from ArXiv
-*   **Autonomous Research Agent**: A unified RAG ReAct agent that dynamically orchestrates multiple information sources
-*   **Strategic Tool Selection**: Intelligent decision-making between ArXiv search (external) and knowledge base retrieval (internal)
-*   **Deep Document Analysis**: Specialized CrewAI team for comprehensive PDF analysis with complementary agent architecture
+*   **Autonomous Research Agent**: Unified ReAct agent that dynamically orchestrates multiple information sources
+*   **Multi-Source Retrieval**: Intelligent decision-making between ArXiv search (external) and knowledge base RAG (internal)
+*   **Deep Document Analysis**: Specialized CrewAI team for comprehensive PDF analysis
 *   **Stateful Workflows**: Persistent, resumable research sessions with MongoDB checkpointing
-*   **Comprehensive Evaluation**: Built-in metrics for RAG performance and synthesis quality assessment
-
-## ✨ Key Features
-
-### 🔍 Multi-Source Information Retrieval
-- **ArXiv Search**: Access to latest scientific papers and research
-- **Knowledge Base RAG**: Fast, precise retrieval from curated internal documents
-- **Intelligent Fusion**: Automatic deduplication and relevance-based merging of information sources
-
-### 🤖 Autonomous Agent Architecture
-- **Unified RAG ReAct Agent**: Single agent handling end-to-end research workflows
-- **Strategic Tool Orchestration**: Context-aware decision-making for optimal tool selection
-- **Iterative Reasoning**: ReAct pattern enabling dynamic adaptation to query complexity
-
-### 📄 Specialized PDF Analysis
-- **Two-Agent CrewAI System**: Complementary architecture with clear separation of concerns
-  - **Deep Document Analyst**: Analytical precision (temperature: 0.2) for structured extraction
-  - **Research Report Synthesizer**: Creative synthesis (temperature: 0.4) for comprehensive reports
-
-### 💾 Production-Ready Infrastructure
-- **MongoDB Integration**: Vector store with Atlas Vector Search + persistent checkpointing
-- **Multi-LLM Support**: Centralized factory supporting OpenAI, Hugging Face, and Ollama
-- **Experiment Tracking**: Weights & Biases integration for metrics and evaluation
-- **FastAPI API**: RESTful interface for system integration
+*   **Long-Term Memory**: Conversation summarization prevents prompt explosion while preserving context
 
 ## 🏗️ Architecture
 
-### High-Level System Architecture
+### System Architecture
+
+The system implements a **multi-node LangGraph workflow** with separated concerns for agent reasoning, tool execution, and memory management:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           USER REQUEST                                      │
-│                    (CLI / API / Jupyter Notebook)                           │
-└──────────────────────────────┬──────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      LANGGRAPH WORKFLOW                                      │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │  Entry Point: rag_agent Node                                          │   │
-│  │  • Receives user query                                                │   │
-│  │  • Initializes GraphState with checkpointing                         │   │
-│  │  • State persisted in MongoDB                                         │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────┬──────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    RAG REACT AGENT                                          │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │  Autonomous Decision-Making Engine                                    │   │
-│  │  • Context Analysis: Evaluates query complexity                     │   │
-│  │  • Strategic Planning: Determines tool usage sequence              │   │
-│  │  • ReAct Pattern: Reasoning + Acting loop                           │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────┬──────────────────────────────────────────────┘
-                                │
-                ┌───────────────┼───────────────┐
-                │               │               │
-                ▼               ▼               ▼
-    ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-    │  Tool 1:         │  │  Tool 2:         │  │  Tool 3:         │
-    │  arxiv_search    │  │  knowledge_base  │  │  document_deep   │
-    │  _tool           │  │  _retrieval_tool │  │  _dive_analysis  │
-    │                  │  │                  │  │  _tool           │
-    │  • Search ArXiv  │  │  • Query MongoDB │  │                  │
-    │  • Find papers   │  │    vector store  │  │  • Download PDF   │
-    │  • Return        │  │  • Retrieve      │  │  • Extract text   │
-    │    metadata      │  │    embeddings    │  │  • Trigger CrewAI │
-    └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
-             │                     │                      │
-             └─────────┬──────────┴──────────┬───────────┘
-                        │                      │
-                        ▼                      ▼
-        ┌──────────────────────────────────────────────┐
-        │     Agent Reasoning & Decision Loop          │
-        │  • Evaluates tool outputs                   │
-        │  • Determines if more information needed    │
-        │  • Selects next action (tool or synthesis)  │
-        │  • Max iterations: 15                       │
-        └──────────────────┬───────────────────────────┘
-                           │
-                           │ (if deep analysis needed)
-                           ▼
-        ┌──────────────────────────────────────────────┐
-        │         CREWAI PDF ANALYSIS PIPELINE         │
-        │  ┌────────────────────────────────────────┐  │
-        │  │  Agent 1: Deep Document Analyst         │  │
-        │  │  • Temperature: 0.2 (analytical)        │  │
-        │  │  • Extract structured information      │  │
-        │  │  • Perform critical analysis           │  │
-        │  └──────────────┬──────────────────────────┘  │
-        │                 │                             │
-        │                 ▼                             │
-        │  ┌────────────────────────────────────────┐  │
-        │  │  Agent 2: Research Report Synthesizer  │  │
-        │  │  • Temperature: 0.4 (creative)        │  │
-        │  │  • Synthesize analysis                 │  │
-        │  │  • Compile comprehensive report         │  │
-        │  └──────────────┬──────────────────────────┘  │
-        └─────────────────┼──────────────────────────────┘
-                          │
-                          │ (returns to RAG agent)
-                          ▼
-        ┌──────────────────────────────────────────────┐
-        │     Agent Synthesis Phase                    │
-        │  • Integrates all information sources       │
-        │  • Structures coherent report               │
-        │  • Executive Summary                         │
-        │  • Key Developments                          │
-        │  • Emerging Trends                          │
-        │  • Applications & Impact                     │
-        │  • Challenges & Future Outlook              │
-        └──────────────────┬───────────────────────────┘
-                           │
-                           ▼
-        ┌──────────────────────────────────────────────┐
-        │         STATE CHECKPOINTING                   │
-        │  • Final state saved to MongoDB              │
-        │  • Thread ID for resumability                │
-        │  • Error handling & recovery                 │
-        └──────────────────┬───────────────────────────┘
-                           │
-                           ▼
-        ┌──────────────────────────────────────────────┐
-        │            FINAL OUTPUT                      │
-        │   Comprehensive Research Report              │
-        │   Returned to User (CLI/API/Notebook)        │
-        └──────────────────────────────────────────────┘
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                      USER REQUEST (CLI/API)                               ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+                                      │
+                                      ▼
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    LANGGRAPH WORKFLOW                                     ║
+║         StateGraph with MongoDB Checkpointing                             ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  ╔═════════════════════════════════════════════════════════════════════╗  ║
+║  ║                      AGENT NODE                                     ║  ║
+║  ║                    (Entry Point)                                    ║  ║
+║  ╠═════════════════════════════════════════════════════════════════════╣  ║
+║  ║    Input:                                                           ║  ║
+║  ║     • conversation_summary (long-term memory)                       ║  ║
+║  ║     • recent messages (last 3, immediate context)                   ║  ║
+║  ║                                                                     ║  ║
+║  ║    Process:                                                         ║  ║
+║  ║     • ReAct Agent analyzes context                                  ║  ║
+║  ║     • Decision: tool_calls OR final_answer                          ║  ║
+║  ║                                                                     ║  ║
+║  ║    Output:                                                          ║  ║
+║  ║     • AIMessage with tool_calls[] OR content (final answer)         ║  ║
+║  ╚═════════════════════════════════════════════════════════════════════╝  ║
+║                              │                                            ║
+║                              │ route_after_agent                          ║
+║                              │                                            ║
+║              ┌───────────────┴───────────────┐                            ║
+║              │                               │                            ║
+║              ▼                               ▼                            ║
+║  ╔═══════════════════════╗      ╔═══════════════════════╗                 ║
+║  ║      TOOL NODE        ║      ║         END           ║                 ║
+║  ║   (if tool_calls)     ║      ║   (if final_answer)   ║                 ║
+║  ╠═══════════════════════╣      ╠═══════════════════════╣                 ║
+║  ║  • Extract tool_calls ║      ║  • Return final_state ║                 ║
+║  ║  • Get from Registry  ║      ║  • Output: final_     ║                 ║
+║  ║  • Execute tools:     ║      ║    output             ║                 ║
+║  ║    - arxiv_search     ║      ╚═══════════════════════╝                 ║
+║  ║    - knowledge_base   ║                                                ║
+║  ║    - document_analysis║                                                ║
+║  ║  • Return ToolMessage ║                                                ║
+║  ╚═══════════════════════╝                                                ║
+║              │                                                            ║
+║              │ route_after_tool                                           ║
+║              │                                                            ║
+║              └───────────┬───────────────┐                                ║
+║                          │               │                                ║
+║                          ▼               ▼                                ║
+║          ╔═══════════════════════╗  ╔═══════════════════════╗             ║
+║          ║     SUMMARY NODE      ║  ║      AGENT NODE       ║             ║
+║          ║   (if msg_count ≥ 20) ║  ║   (if msg_count < 20) ║             ║
+║          ╠═══════════════════════╣  ╠═══════════════════════╣             ║
+║          ║  • Take: messages +   ║  ║  • Continue workflow  ║             ║
+║          ║    existing summary   ║  ║  • Process tool       ║             ║
+║          ║  • Generate condensed ║  ║    results            ║             ║
+║          ║    summary            ║  ║                       ║             ║
+║          ║  • Preserve findings  ║  ║                       ║             ║
+║          ║  • Clear old msgs     ║  ║                       ║             ║
+║          ║  • Keep last 3 msgs   ║  ║                       ║             ║
+║          ╚═══════════════════════╝  ╚═══════════════════════╝             ║
+║                      │                                                    ║
+║                      │ route_after_summary                                ║
+║                      │                                                    ║
+║                      └───────────┬                                        ║
+║                                  │                                        ║
+║                                  ▼                                        ║
+║                          ╔═══════════════╗                                ║
+║                          ║   AGENT NODE  ║                                ║
+║                          ║  (Loop back)  ║                                ║
+║                          ╚═══════════════╝                                ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+                                      │
+                                      ▼
+                          ╔═══════════════════════╗
+                          ║      FINAL OUTPUT     ║
+                          ║  GraphState with      ║
+                          ║  final_output         ║
+                          ╚═══════════════════════╝
 ```
 
-### Architecture Highlights
+### Key Components
 
-#### 1. **Autonomous Agent Design**
-The RAG ReAct agent implements a sophisticated decision-making framework that dynamically adapts its strategy based on query complexity and available information sources. This design eliminates the need for rigid, sequential workflows while maintaining high-quality outputs.
+1. **Agent Node** (`agentic/workflow/nodes/agent_node.py`):
+   - **Input**: `conversation_summary` (string, long-term memory) + `messages` (list, recent context)
+   - **Process**: ReAct agent (LangChain) analyzes context and decides on action
+   - **Output**: `AIMessage` with `tool_calls` (list) OR `content` (final answer string)
+   - **State Updates**: `messages`, `next_action`, `final_output`, `iteration_count`
+   - **Safety**: Maximum iteration limit (50) to prevent infinite loops
 
-**Key Decision Logic:**
-- **For recent/emerging topics**: Prioritizes ArXiv search for latest papers
-- **For established concepts**: Starts with knowledge base for fast, precise access
-- **For comprehensive research**: Uses both sources intelligently
-- **Best Practice**: Checks knowledge base first for established work, then supplements with ArXiv for recent developments
+2. **Tool Node** (`agentic/workflow/nodes/tool_node.py`):
+   - **Input**: `messages` (extracts `tool_calls` from last `AIMessage`)
+   - **Process**: Retrieves tools from `ToolRegistry`, executes each tool call
+   - **Tools Available**: `arxiv_search_tool`, `knowledge_base_retrieval_tool`, `document_deep_dive_analysis_tool`
+   - **Output**: `ToolMessage` list with execution results
+   - **Error Handling**: Graceful failure with error messages in `ToolMessage`
+   - **Next Step**: Always routes to either `summarize` (if message_count >= 20) or `agent` (continue)
 
-#### 2. **Complementary Agent Architecture**
-The two-agent CrewAI system is engineered with clear separation of concerns:
-- **Analytical Agent** (temp: 0.2): Focuses on extraction and critical evaluation
-- **Synthesis Agent** (temp: 0.4): Transforms technical analysis into accessible reports
+3. **Summary Node** (`agentic/workflow/nodes/summary_node.py`):
+   - **Trigger**: Only after `tool_node` when `len(messages) >= SUMMARY_THRESHOLD` (20 messages)
+   - **Input**: Recent messages + existing `conversation_summary`
+   - **Process**: LLM-based summarization (temperature: 0.1 for factual accuracy)
+   - **Output**: Condensed summary preserving key findings
+   - **Memory Management**: Clears old messages, keeps last 3 for immediate context
+   - **Next Step**: Always routes back to `agent` with updated summary
 
-This architecture optimizes both computational efficiency and output quality.
+4. **Routing Logic** (`agentic/workflow/routing.py`):
+   - **route_after_agent**: Routes to `tool` (if tool_calls), `continue` (if unclear), or `end` (if final_answer)
+   - **route_after_tool**: Routes to `summarize` (if message_count >= 20) or `agent` (if message_count < 20)
+   - **route_after_summary**: Always routes back to `agent` with updated summary
+   - **Note**: Summary node can only be reached after tool node execution, never in parallel
 
-#### 3. **Stateful Workflow Management**
-LangGraph's checkpointing mechanism enables robust handling of long-running research tasks, with full state persistence and resumability. This is critical for production deployments where reliability and fault tolerance are essential.
+5. **State Management** (`core/state.py`):
+   - **GraphState**: TypedDict with `messages`, `conversation_summary`, `user_query`, `final_output`, `next_action`, `error_message`, `iteration_count`
+   - **Checkpointing**: MongoDB-based persistence via `services/storage/checkpointer.py`
+   - **Resumability**: Thread-based state recovery for long-running sessions
 
-### Strategic Information Retrieval
+### Tool Registry Architecture
 
-The system implements an intelligent hybrid approach combining:
+The system uses a **modular Tool Registry** pattern:
+- Tools are registered in `src/agentic/tools/registry.py`
+- `tool_node.py` retrieves tools dynamically (no hardcoding)
+- Easy to add/remove tools without modifying workflow code
 
-1. **ArXiv Search (External)**
-   - Access to latest research papers
-   - Real-time discovery of new publications
-   - Metadata-rich results with summaries
+### Information Retrieval Strategy
 
-2. **Knowledge Base RAG (Internal)**
-   - Fast retrieval from curated documents
-   - Semantic search with embeddings
-   - Metadata filtering capabilities
+**Hybrid Approach:**
+- **ArXiv Search**: Access to latest scientific papers (external)
+- **Knowledge Base RAG**: Fast retrieval from curated documents (internal)
+- **Intelligent Fusion**: Automatic deduplication and relevance-based merging
 
-3. **Intelligent Fusion**
-   - Automatic deduplication by `arxiv_id`
-   - Relevance-based prioritization
-   - Context-aware source selection
-
-**Decision Strategy:**
-```
-Query Analysis → Source Selection → Tool Execution → Result Fusion → Synthesis
-```
-
-## 📊 Architecture Analysis & Optimization
-
-### Current Architecture Strengths
-
-✅ **Complementary Design**
-- ArXiv provides access to recent research (not yet in KB)
-- RAG enables fast, precise access to processed documents
-- Natural synergy between external and internal sources
-
-✅ **Flexibility**
-- Agent dynamically decides which source to use
-- Can combine both sources as needed
-- Adapts to query characteristics
-
-✅ **Efficiency**
-- RAG is fast for known documents
-- ArXiv for new discoveries
-- Deep analysis only on most relevant papers (1-3)
-
-### Optimization Opportunities
-
-#### 🔥 High Impact / Low Effort
-1. **Intelligent Deduplication**: Check if ArXiv paper is already in KB before deep analysis
-2. **ArXiv Caching**: Avoid repeated searches for same queries
-3. **Enhanced Prompt Guidelines**: More precise decision-making instructions (✅ **Implemented**)
-
-#### ⚡ High Impact / Medium Effort
-4. **Web Search Tool**: Add general web search (Tavily, Serper) for broader queries
-5. **Explicit Decision Logic**: Helper functions to guide agent decisions
-
-#### 🎯 Medium Impact
-6. **Hybrid Search Tool**: Combined ArXiv + KB search in single operation
-7. **Quality Metrics**: Tracking to optimize decision-making
-
-### Architecture Verdict
-
-**Status**: ✅ **SOLID architecture with optimization potential**
-
-The current design effectively combines external search (ArXiv) with internal RAG, providing a flexible and efficient research system. The autonomous agent architecture enables intelligent tool orchestration while maintaining simplicity and maintainability.
-
-## 🔍 Project Audit & Code Quality
-
-### Module Status
-
-#### ✅ Core Modules (All Active)
-- `src/data_processing/` - **ESSENTIAL**: Ingestion pipeline used by `run_ingestion.py`
-- `src/agents/tool_definitions.py` - **ACTIVE**: Tools used by RAG agent
-- `src/agents/crewai_teams/document_analysis_crew.py` - **ACTIVE**: Called by `document_deep_dive_analysis_tool`
-- `src/rag/retrieval_engine.py` - **ACTIVE**: Used by `knowledge_base_retrieval_tool`
-- `src/vector_store/mongodb_manager.py` - **ACTIVE**: Used by ingestion pipeline
-- `src/llm_services/llm_factory.py` - **ACTIVE**: Centralized, used everywhere
-- `src/graph/checkpointer.py` - **ACTIVE**: MongoDB checkpointing for LangGraph
-- `src/graph/main_workflow.py` - **ACTIVE**: Main workflow
-- `src/evaluation/` - **ACTIVE**: RAG and synthesis evaluation
-- `src/api/` - **ACTIVE**: FastAPI application
-
-#### ✅ CLI Scripts (All Useful)
-- `src/scripts/run_ingestion.py` - **ESSENTIAL**: Populates knowledge base
-- `src/scripts/run_makers.py` - **ESSENTIAL**: Main CLI interface
-- `src/scripts/run_evaluation.py` - **USEFUL**: System evaluation
-
-#### 📝 Legacy Agents (Preserved for Compatibility)
-The following functions are kept for backward compatibility with notebooks and tests:
-- `create_research_planner_agent()` 
-- `create_arxiv_search_agent()`
-- `create_document_analysis_agent()`
-- `create_synthesis_agent()`
-
-**Reason**: Used in demonstration notebooks and module tests. The main workflow now uses only the unified RAG ReAct agent.
-
-### Code Quality Status
-
-✅ **Architecture Coherent**: All modules correctly connected
-✅ **No Dead Code**: All files have utility
-✅ **Clean Imports**: No unused imports detected
-✅ **Simplified Workflow**: Optimal architecture with single ReAct agent
-✅ **Production Ready**: Consistent and well-structured
-
-**Overall Status**: ✅ **PROJECT COHERENT AND PRODUCTION-READY**
+**Decision Logic:**
+- Recent/emerging topics → Prioritize ArXiv
+- Established concepts → Start with knowledge base
+- Comprehensive research → Use both sources intelligently
 
 ## 🛠️ Tech Stack
 
-### Core Technologies
-- **Language**: Python 3.11+
 - **LLM Orchestration**: LangGraph
-- **Specialized Agents**: CrewAI (for deep document analysis)
+- **Agent Framework**: LangChain (ReAct pattern)
+- **Specialized Analysis**: CrewAI (two-agent complementary architecture)
 - **RAG & Indexing**: LlamaIndex
-- **LLM Framework**: LangChain
 - **Vector Database**: MongoDB Atlas
-- **Experiment Tracking**: Weights & Biases
+- **LLM Providers**: OpenAI, Hugging Face, Ollama (centralized factory)
 - **API**: FastAPI, Uvicorn
-
-### LLM & Embedding Providers
-- **OpenAI**: GPT models + embeddings
-- **Hugging Face**: Open-source models via API
-- **Ollama**: Local LLM deployment
-
-### Centralized Configuration
-The `src/llm_services/llm_factory.py` module centralizes LLM instantiation for all components, ensuring consistent configuration and easy provider switching.
+- **Experiment Tracking**: Weights & Biases
 
 ## 📁 Directory Structure
 
 ```
-makers/
-├── config/              # Configuration files (settings, logging)
-├── data/                # Local data (corpus, evaluation datasets)
-├── notebooks/           # Jupyter notebooks for demonstration
-├── src/                 # Source code
-│   ├── agents/          # Agent architectures and tool definitions
-│   │   └── crewai_teams/ # CrewAI sub-task definitions
-│   ├── api/             # FastAPI application
-│   ├── data_processing/ # Data ingestion and preprocessing
-│   ├── evaluation/      # Evaluation and W&B logging
-│   ├── graph/           # LangGraph workflow definition
-│   ├── llm_services/    # Centralized LLM factory
-│   ├── rag/             # RAG engine (LlamaIndex)
-│   ├── scripts/         # CLI scripts
-│   └── vector_store/    # MongoDB management
-├── .env.example         # Environment variables template
-├── pyproject.toml       # Poetry dependencies
-├── Dockerfile           # Docker image definition
-└── README.md            # This file
+src/
+├── core/            # Core foundations (state, constants)
+├── services/        # Reusable technical services
+│   ├── llm.py       # LLM factory (OpenAI, HuggingFace, Ollama)
+│   ├── storage/     # MongoDB, Vector Store, Checkpointer
+│   ├── ingestion/   # Data ingestion pipeline
+│   └── evaluation/  # Evaluation services (RAG, synthesis)
+├── agentic/         # Agentic system
+│   ├── agents/      # Agents and prompts (plural for scalability)
+│   ├── tools/       # Tools with registry pattern
+│   └── workflow/    # LangGraph workflow (graph, runner, nodes, routing)
+└── application/     # User interfaces
+    ├── api/         # FastAPI REST API
+    └── cli/         # Command-line interface scripts
 ```
 
 ## ⚙️ Installation & Setup
@@ -319,32 +193,28 @@ makers/
 ### Prerequisites
 
 - **Python 3.11+**
-- **Poetry**: Dependency management ([Installation Guide](https://python-poetry.org/docs/#installation))
+- **Poetry**: Dependency management
 - **MongoDB**: Atlas or local instance
 - **Ollama** (default): Ensure Ollama server is running
 
-### Step 1: Clone Repository
+### Installation
 
-```bash
-git clone https://github.com/estephe-arnaud/makers
-cd makers
-```
+1. **Clone repository**:
+   ```bash
+   git clone https://github.com/estephe-arnaud/makers
+   cd makers
+   ```
 
-### Step 2: Configure Environment
-
-1. Copy the environment template:
+2. **Configure environment**:
    ```bash
    cp .env.example .env
    ```
-
-2. Configure MongoDB connection:
+   
+   Edit `.env`:
    ```env
-   MONGODB_URI=mongodb://localhost:27017  # or your Atlas connection string
+   MONGODB_URI=mongodb://localhost:27017
    MONGO_DATABASE_NAME=makers_db
-   ```
-
-3. (Optional) Configure LLM provider:
-   ```env
+   
    # For OpenAI
    DEFAULT_LLM_MODEL_PROVIDER=openai
    OPENAI_API_KEY=your_key_here
@@ -354,55 +224,45 @@ cd makers
    OLLAMA_BASE_URL=http://localhost:11434
    ```
 
-### Step 3: Install Dependencies
+3. **Install dependencies**:
+   ```bash
+   poetry install
+   ```
 
-```bash
-poetry install
-```
-
-This creates a virtual environment and installs all dependencies. For production-only installation:
-```bash
-poetry install --no-dev
-```
-
-### Step 4: (Optional) Connect to Weights & Biases
-
-```bash
-poetry run wandb login
-```
+4. **(Optional) Connect to Weights & Biases**:
+   ```bash
+   poetry run wandb login
+   ```
 
 ## 🚀 Usage
 
-All commands should be executed from the project root directory using `poetry run` to ensure execution in the Poetry-managed virtual environment.
-
 ### 1. Data Ingestion
 
-Populate your MongoDB knowledge base with ArXiv papers:
+Populate MongoDB knowledge base with ArXiv papers:
 
 ```bash
-poetry run python -m src.scripts.run_ingestion \
+poetry run python -m src.application.cli.run_ingestion \
   --query "explainable AI in robotics" \
   --max_results 10
 ```
 
 **Options:**
 - `--query`: Natural language query for corpus naming and ArXiv search
-- `--arxiv_keywords`: Optimized keywords for ArXiv (e.g., "deep learning AND robotics")
+- `--arxiv_keywords`: Optimized keywords for ArXiv
 - `--max_results`: Maximum papers to download (default: 10)
 - `--sort_by`: Sort criterion (relevance, lastUpdatedDate, submittedDate)
-- `--skip_download`: Use existing PDFs without downloading
 
 ### 2. Run MAKERS Workflow
 
-Submit a research query to the autonomous agent system:
+Submit a research query to the autonomous agent:
 
 ```bash
-poetry run python -m src.scripts.run_makers \
+poetry run python -m src.application.cli.run_makers \
   --query "What are the latest advancements in using large language models for robot task planning?"
 ```
 
 **Options:**
-- `--query` / `-q`: Research query to process (required)
+- `--query` / `-q`: Research query (required)
 - `--thread_id` / `-t`: Optional thread ID to resume a previous session
 - `--log_level`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
@@ -411,7 +271,7 @@ poetry run python -m src.scripts.run_makers \
 Evaluate system performance:
 
 ```bash
-poetry run python -m src.scripts.run_evaluation \
+poetry run python -m src.application.cli.run_evaluation \
   --eval_type all \
   --rag_dataset data/evaluation/rag_eval_dataset.json
 ```
@@ -422,83 +282,53 @@ poetry run python -m src.scripts.run_evaluation \
 - `--synthesis_dataset`: Path to synthesis evaluation dataset
 - `--wandb_project`: W&B project name (default: MAKERS-Evaluations)
 
-## 📓 Jupyter Notebooks
+### 4. API Server
 
-Interactive notebooks for demonstration and exploration:
+Start the FastAPI server:
 
-1. **Activate Poetry environment**:
-   ```bash
-   poetry shell
-   ```
+```bash
+poetry run uvicorn src.application.api.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-2. **Launch Jupyter**:
-   ```bash
-   jupyter notebook
-   ```
+Access:
+- API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-3. **Available Notebooks**:
-   - `00_setup_environment.ipynb`: Environment setup and configuration
-   - `01_data_ingestion_and_embedding.ipynb`: Data pipeline demonstration
-   - `02_rag_strategies_exploration.ipynb`: RAG strategies exploration
-   - `03_agent_development_and_tooling.ipynb`: Agent and tool development
-   - `04_langgraph_workflow_design.ipynb`: Workflow design patterns
-   - `05_crewai_team_integration.ipynb`: CrewAI integration examples
-   - `06_end_to_end_pipeline_test.ipynb`: Complete pipeline testing
-   - `07_evaluation_and_logging.ipynb`: Evaluation and metrics logging
+**Example API request:**
+```bash
+curl -X POST "http://localhost:8000/invoke_makers" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are the latest trends in reinforcement learning for robotics?"}'
+```
 
-## 🔮 Future Work
+## 🐳 Docker
 
-### High Priority
-- **Web Search Integration**: Add general web search tool (Tavily, Serper) for broader queries
-- **Intelligent Deduplication**: Automatic detection of papers already in knowledge base
-- **ArXiv Caching**: Cache search results to reduce API calls and latency
+Build and run with Docker:
 
-### Medium Priority
-- **Advanced RAG Strategies**: Parent Document Retriever, hybrid search, query expansion
-- **Citation Network Analysis**: Analyze paper citations and relationships
-- **Real-time Data Sources**: Integration with live research feeds
+```bash
+# Build image
+docker build -t makers-app .
 
-### Enhancement Opportunities
-- **Streaming Responses**: Real-time output streaming for API
-- **Batch Processing**: Handle multiple queries efficiently
-- **Advanced Caching**: Multi-level caching for documents and embeddings
-- **Comprehensive Testing**: Test suites for agent decision-making and tool orchestration
-- **LLM-based Query Optimization**: Improve search relevance through query refinement
+# Run CLI
+docker run -e OPENAI_API_KEY=$OPENAI_API_KEY \
+           -e MONGODB_URI=$MONGODB_URI \
+           makers-app \
+           python -m src.application.cli.run_makers --query "Your query"
+
+# Run API server
+docker run -p 8000:8000 \
+           -e OPENAI_API_KEY=$OPENAI_API_KEY \
+           -e MONGODB_URI=$MONGODB_URI \
+           makers-app \
+           uvicorn src.application.api.main:app --host 0.0.0.0 --port 8000
+```
 
 ## 📄 License
 
-```
-MIT License
-
-Copyright (c) 2025 Estèphe ARNAUD / MAKERS: Multi Agent Knowledge Exploration & Retrieval System
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+MIT License - Copyright (c) 2025 Estèphe ARNAUD
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📧 Contact
-
-For questions or feedback, please open an issue on GitHub.
-
----
-
-**Built with ❤️ for the research community**

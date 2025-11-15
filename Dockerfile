@@ -33,13 +33,12 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy the application source code
 COPY src ./src
-COPY scripts ./scripts
 COPY config ./config
 
 # Set the default command to run the main workflow
 # You can override this command when running the container
-CMD ["python", "-m", "scripts.run_makers", "--help"]
+CMD ["python", "-m", "src.application.cli.run_makers", "--help"]
 
 # For example, to run a specific script:
-# docker run makers-app python -m scripts.run_ingestion --max_results 1
-# docker run -e OPENAI_API_KEY=$OPENAI_API_KEY -e MONGODB_URI=$MONGODB_URI makers-app python -m scripts.run_makers --query "My query"
+# docker run makers-app python -m src.application.cli.run_ingestion --max_results 1
+# docker run -e OPENAI_API_KEY=$OPENAI_API_KEY -e MONGODB_URI=$MONGODB_URI makers-app python -m src.application.cli.run_makers --query "My query"
