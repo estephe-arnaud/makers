@@ -115,7 +115,8 @@ The system implements a **multi-node LangGraph workflow** with separated concern
 2. **Tool Node** (`agentic/workflow/nodes/tool_node.py`):
    - **Input**: `messages` (extracts `tool_calls` from last `AIMessage`)
    - **Process**: Retrieves tools from `ToolRegistry`, executes each tool call
-   - **Tools Available**: `arxiv_search_tool`, `knowledge_base_retrieval_tool`, `document_deep_dive_analysis_tool`
+   - **Tools Available**: `arxiv_search_tool`, `knowledge_base_retrieval_tool`
+   - **Note**: `document_deep_dive_analysis_tool` is not used for security reasons (prevents automatic PDF downloads)
    - **Output**: `ToolMessage` list with execution results
    - **Error Handling**: Graceful failure with error messages in `ToolMessage`
    - **Next Step**: Always routes to either `summarize` (if message_count >= 20) or `agent` (continue)
@@ -166,6 +167,7 @@ The system uses a **modular Tool Registry** pattern:
 - **RAG & Indexing**: LlamaIndex
 - **Vector Database**: MongoDB Atlas
 - **LLM Providers**: OpenAI, Hugging Face, Ollama, Groq, Google Gemini (centralized factory)
+- **Embedding Providers**: HuggingFace (default, local/unlimited/free), Ollama (local), OpenAI (API)
 - **API**: FastAPI, Uvicorn
 - **Experiment Tracking**: Weights & Biases
 
@@ -215,23 +217,34 @@ src/
           MONGODB_URI=mongodb://localhost:27017
           MONGO_DATABASE_NAME=makers_db
           
-          # For Groq (default - unlimited/free tier with smaller model)
+          # LLM Provider (default: Groq - unlimited/free tier)
           DEFAULT_LLM_MODEL_PROVIDER=groq
           GROQ_API_KEY=your_groq_api_key_here
           GROQ_MODEL_NAME=llama-3.1-8b-instant
           
-          # For Google Gemini
-          DEFAULT_LLM_MODEL_PROVIDER=google
-          GOOGLE_API_KEY=your_google_api_key_here
-          GOOGLE_GEMINI_MODEL_NAME=gemini-pro
+          # Embedding Provider (default: HuggingFace - local, unlimited, free)
+          DEFAULT_EMBEDDING_PROVIDER=huggingface
+          HUGGINGFACE_EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
           
-          # For OpenAI
-          DEFAULT_LLM_MODEL_PROVIDER=openai
-          OPENAI_API_KEY=your_key_here
+          # Alternative LLM Providers:
+          # DEFAULT_LLM_MODEL_PROVIDER=google
+          # GOOGLE_API_KEY=your_google_api_key_here
+          # GOOGLE_GEMINI_MODEL_NAME=gemini-pro
           
-          # For Ollama
-          DEFAULT_LLM_MODEL_PROVIDER=ollama
-          OLLAMA_BASE_URL=http://localhost:11434
+          # DEFAULT_LLM_MODEL_PROVIDER=openai
+          # OPENAI_API_KEY=your_key_here
+          
+          # DEFAULT_LLM_MODEL_PROVIDER=ollama
+          # OLLAMA_BASE_URL=http://localhost:11434
+          
+          # Alternative Embedding Providers:
+          # DEFAULT_EMBEDDING_PROVIDER=ollama
+          # OLLAMA_EMBEDDING_MODEL_NAME=nomic-embed-text
+          # OLLAMA_BASE_URL=http://localhost:11434
+          
+          # DEFAULT_EMBEDDING_PROVIDER=openai
+          # OPENAI_API_KEY=your_key_here
+          # OPENAI_EMBEDDING_MODEL_NAME=text-embedding-3-small
           ```
 
 3. **Install dependencies**:
@@ -338,19 +351,31 @@ src/
 
 ### 1. Data Ingestion
 
-Populate MongoDB knowledge base with ArXiv papers:
+By default, the pipeline loads PDFs from a local directory. To use local PDFs:
 
 ```bash
 poetry run python -m src.application.cli.run_ingestion \
+  --pdf_dir /path/to/my/pdfs
+```
+
+To download PDFs from ArXiv (requires `--download_from_arxiv`):
+
+```bash
+poetry run python -m src.application.cli.run_ingestion \
+  --download_from_arxiv \
   --query "explainable AI in robotics" \
   --max_results 10
 ```
 
-**Options:**
-- `--query`: Natural language query for corpus naming and ArXiv search
-- `--arxiv_keywords`: Optimized keywords for ArXiv
-- `--max_results`: Maximum papers to download (default: 10)
-- `--sort_by`: Sort criterion (relevance, lastUpdatedDate, submittedDate)
+**Main options:**
+- `--pdf_dir` (required by default): Path to a directory containing PDF files
+- `--download_from_arxiv`: Enable downloading from ArXiv instead of using a local directory
+- `--query`: Required with `--download_from_arxiv`, query for ArXiv search
+- `--arxiv_keywords`: Optimized keywords for ArXiv (required with `--download_from_arxiv`)
+- `--max_results`: Maximum number of papers to download (default: 10, only with `--download_from_arxiv`)
+- `--sort_by`: Sort criterion (relevance, lastUpdatedDate, submittedDate, only with `--download_from_arxiv`)
+- `--corpus_name`: Specific name for the corpus (optional)
+- `--collection_name`: MongoDB collection name (default: `makers_chunks`)
 
 ### 2. Run MAKERS Workflow
 

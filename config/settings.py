@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     # --- MongoDB Configuration ---
     MONGODB_URI: str = "mongodb://localhost:27017/"
     MONGO_DATABASE_NAME: str = "makers_db"
-    MONGODB_COLLECTION_NAME: str = "makers_collection"  # Collection principale pour les données
+    MONGODB_COLLECTION_NAME: str = "makers_collection"
     MONGO_MAX_POOL_SIZE: int = 50
     MONGO_TIMEOUT_MS: int = 5000  # 5 seconds
     LANGGRAPH_CHECKPOINTS_COLLECTION: str = "langgraph_checkpoints"
@@ -64,13 +64,14 @@ class Settings(BaseSettings):
     GOOGLE_GEMINI_MODEL_NAME: Optional[str] = "gemini-pro"  # Default Gemini model
 
     # --- Embedding Configuration ---
-    DEFAULT_EMBEDDING_PROVIDER: str = "ollama"
+    DEFAULT_EMBEDDING_PROVIDER: str = "huggingface"  # Local, unlimited, free
     
     # OpenAI Embeddings
     OPENAI_EMBEDDING_MODEL_NAME: str = "text-embedding-3-small"
     OPENAI_EMBEDDING_DIMENSION: int = 1536
     
-    # HuggingFace Embeddings
+    # HuggingFace Embeddings (local, unlimited, free)
+    # Models run locally on your machine - no API limits or costs
     HUGGINGFACE_EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
     HUGGINGFACE_EMBEDDING_MODEL_DIMENSION: int = 384
     
@@ -95,6 +96,7 @@ class Settings(BaseSettings):
 
     # --- API Configuration ---
     API_V1_STR: str = "/api/v1"
+    ALLOWED_ORIGINS: List[str] = ["*"]  # Override in production with specific origins
 
     model_config = SettingsConfigDict(
         env_file=".env",

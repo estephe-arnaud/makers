@@ -40,5 +40,6 @@ COPY config ./config
 CMD ["python", "-m", "src.application.cli.run_makers", "--help"]
 
 # For example, to run a specific script:
-# docker run makers-app python -m src.application.cli.run_ingestion --max_results 1
+# docker run -v /path/to/pdfs:/pdfs makers-app python -m src.application.cli.run_ingestion --pdf_dir /pdfs
+# docker run makers-app python -m src.application.cli.run_ingestion --download_from_arxiv --query "machine learning" --max_results 10
 # docker run -e OPENAI_API_KEY=$OPENAI_API_KEY -e MONGODB_URI=$MONGODB_URI makers-app python -m src.application.cli.run_makers --query "My query"

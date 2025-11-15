@@ -18,12 +18,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 
 from config.settings import settings
-# MODIFICATION: Mettre à jour l'import pour get_llm et DEFAULT_LLM_TEMPERATURE
 from src.services.llm import get_llm, DEFAULT_LLM_TEMPERATURE
 
 logger = logging.getLogger(__name__)
 
-# --- Structures de Données pour l'Évaluation (inchangées) ---
+# --- Data Structures for Evaluation (unchanged) ---
 class EvaluationAspectScore(TypedDict):
     """Represents the score and reasoning for a specific evaluation aspect."""
     score: float

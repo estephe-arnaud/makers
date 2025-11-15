@@ -10,24 +10,36 @@ Key features:
 - Batch processing with configurable batch size
 - Comprehensive metadata management
 - Robust error handling and logging
+
+Provider Notes:
+- HuggingFace: Runs locally - UNLIMITED and FREE (model downloaded once, cached locally)
+- Ollama: Runs locally - UNLIMITED and FREE (requires Ollama installed)
+- OpenAI: Uses API - has rate limits and costs per token
+
+Recommendation: Use HuggingFace or Ollama for unlimited, free embeddings.
 """
 
 import logging
-import time
-from typing import List, Dict, Optional, TypedDict, Any
+from typing import List, Dict, Any
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings, OllamaEmbeddings
 
 from config.settings import settings
-# Importer ProcessedChunk depuis preprocessor.py pour utiliser la nouvelle structure
 from src.services.ingestion.preprocessor import ProcessedChunk 
 
 logger = logging.getLogger(__name__)
 
-# La typé ProcessedChunkWithEmbedding n'est plus utilisée directement pour la sortie de cette fonction,
-# car la structure change pour inclure un champ 'metadata' imbriqué.
-# La fonction retournera List[Dict[str, Any]]
+# Provider to model name mapping
+_PROVIDER_MODEL_MAP = {
+    "openai": settings.OPENAI_EMBEDDING_MODEL_NAME,
+    "huggingface": settings.HUGGINGFACE_EMBEDDING_MODEL_NAME,
+    "ollama": settings.OLLAMA_EMBEDDING_MODEL_NAME,
+}
+
+def _get_model_name(provider: str) -> str:
+    """Get the model name for a given provider."""
+    return _PROVIDER_MODEL_MAP.get(provider, "")
 
 def get_embedding_client() -> Any:
     """
@@ -63,11 +75,17 @@ def get_embedding_client() -> Any:
             **model_kwargs
         )
     elif provider == "huggingface":
-        logger.info(f"Using HuggingFaceEmbeddings with model: {settings.HUGGINGFACE_EMBEDDING_MODEL_NAME}")
-        return HuggingFaceEmbeddings(
-            model_name=settings.HUGGINGFACE_EMBEDDING_MODEL_NAME,
+        # HuggingFace embeddings run locally - unlimited and free!
+        # The model is downloaded once and cached, then runs on your machine
+        logger.info(
+            f"Using HuggingFaceEmbeddings (local, unlimited) with model: "
+            f"{settings.HUGGINGFACE_EMBEDDING_MODEL_NAME}"
         )
-    elif provider == "ollama":
+        return HuggingFaceEmbeddings(
+            model_name=settings.HUGGINGFACE_EMBEDDING_MODEL_NAME
+        )
+    
+    if provider == "ollama":
         if not settings.OLLAMA_BASE_URL:
             logger.error("Ollama base URL is not configured for embeddings.")
             raise ValueError("Ollama base URL is missing for Ollama embeddings.")
@@ -81,9 +99,9 @@ def get_embedding_client() -> Any:
         raise ValueError(f"Unsupported embedding provider: {provider}")
 
 def generate_embeddings_for_chunks(
-    processed_chunks: List[ProcessedChunk], # Utilise ProcessedChunk mis à jour
+    processed_chunks: List[ProcessedChunk],
     batch_size: int = 32 
-) -> List[Dict[str, Any]]: # Le type de retour est maintenant List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     """
     Generate embeddings for a list of processed text chunks.
     
@@ -101,193 +119,71 @@ def generate_embeddings_for_chunks(
     logger.info(f"Starting embedding generation for {len(processed_chunks)} chunks.")
     
     embedding_client = get_embedding_client()
-    texts_to_embed: List[str] = [chunk["text_chunk"] for chunk in processed_chunks]
-    # MODIFICATION: La liste retournée sera de dictionnaires génériques
-    final_chunks_for_db: List[Dict[str, Any]] = [] 
+    provider = settings.DEFAULT_EMBEDDING_PROVIDER.lower()
+    model_name = _get_model_name(provider)
     
-    current_embedding_provider = settings.DEFAULT_EMBEDDING_PROVIDER.lower()
-    actual_model_name = ""
-    # actual_dimension n'est plus nécessaire ici car on stocke len(embedding_vector)
-
-    if current_embedding_provider == "openai":
-        actual_model_name = settings.OPENAI_EMBEDDING_MODEL_NAME
-    elif current_embedding_provider == "huggingface":
-        actual_model_name = settings.HUGGINGFACE_EMBEDDING_MODEL_NAME
-    elif current_embedding_provider == "ollama":
-        actual_model_name = settings.OLLAMA_EMBEDDING_MODEL_NAME
-    else: 
-        logger.error(f"Unknown embedding provider '{current_embedding_provider}' in generate_embeddings_for_chunks.")
+    if not model_name:
+        logger.error(f"Unknown embedding provider '{provider}' in generate_embeddings_for_chunks.")
         return []
+    
+    texts_to_embed: List[str] = [chunk["text_chunk"] for chunk in processed_chunks]
+    final_chunks_for_db: List[Dict[str, Any]] = []
+    total_batches = (len(texts_to_embed) + batch_size - 1) // batch_size
 
-    for i in range(0, len(texts_to_embed), batch_size):
-        batch_texts = texts_to_embed[i:i + batch_size]
-        batch_original_chunks = processed_chunks[i:i + batch_size]
+    for batch_idx in range(0, len(texts_to_embed), batch_size):
+        batch_texts = texts_to_embed[batch_idx:batch_idx + batch_size]
+        batch_original_chunks = processed_chunks[batch_idx:batch_idx + batch_size]
+        batch_num = batch_idx // batch_size + 1
         
-        logger.info(f"Embedding batch {i//batch_size + 1}/{(len(texts_to_embed) -1)//batch_size + 1} (size: {len(batch_texts)}) using {current_embedding_provider} provider.")
+        logger.info(
+            f"Embedding batch {batch_num}/{total_batches} "
+            f"(size: {len(batch_texts)}) using {provider} provider."
+        )
         
         try:
             embeddings = embedding_client.embed_documents(batch_texts)
             
             if len(embeddings) != len(batch_texts):
-                logger.error(f"Mismatch in number of embeddings ({len(embeddings)}) and texts ({len(batch_texts)}) in batch {i//batch_size + 1}.")
+                logger.error(
+                    f"Mismatch in number of embeddings ({len(embeddings)}) "
+                    f"and texts ({len(batch_texts)}) in batch {batch_num}."
+                )
                 continue
 
+            # Process batch results
             for original_chunk, embedding_vector in zip(batch_original_chunks, embeddings):
-                # MODIFICATION: Construire la structure du document avec un champ 'metadata' imbriqué
-                metadata_sub_document: Dict[str, Any] = {
-                    "chunk_id": original_chunk['chunk_id'], # Peut être utile de le garder dans les métadonnées aussi
+                # Build base metadata (priority fields)
+                metadata = {
+                    "chunk_id": original_chunk['chunk_id'],
                     "arxiv_id": original_chunk['arxiv_id'],
                     "original_document_title": original_chunk.get('original_document_title'),
-                    "embedding_model": actual_model_name,
-                    "embedding_provider": current_embedding_provider,
+                    "embedding_model": model_name,
+                    "embedding_provider": provider,
                     "embedding_dimension": len(embedding_vector) if embedding_vector else 0
                 }
                 
-                # Ajouter les métadonnées de la source originale (si elles existent)
-                # au dictionnaire de métadonnées
+                # Merge source metadata (preserve priority fields, map title if needed)
                 source_meta = original_chunk.get("source_document_metadata")
-                if source_meta and isinstance(source_meta, dict):
-                    # On peut choisir d'ajouter toutes les clés ou seulement certaines
-                    # Ici, on ajoute celles qui ne sont pas déjà explicitement gérées
-                    # pour éviter les écrasements, ou on fusionne intelligemment.
-                    # Pour la simplicité, on fusionne, en donnant la priorité aux clés déjà définies.
+                if isinstance(source_meta, dict):
+                    # Add all source metadata except conflicting keys
                     for key, value in source_meta.items():
-                        if key not in metadata_sub_document: # Évite d'écraser 'title' si 'original_document_title' est déjà là
-                            metadata_sub_document[key] = value
-                        elif key == "title" and "original_document_title" not in metadata_sub_document: # Cas spécifique pour le titre
-                             metadata_sub_document["original_document_title"] = value
+                        if key not in metadata:
+                            metadata[key] = value
+                        elif key == "title" and not metadata.get("original_document_title"):
+                            metadata["original_document_title"] = value
 
-
-                chunk_for_db = {
-                    "chunk_id": original_chunk['chunk_id'], # Utilisé pour _id dans MongoDB
+                final_chunks_for_db.append({
+                    "chunk_id": original_chunk['chunk_id'],
                     "text_chunk": original_chunk['text_chunk'],
                     "embedding": embedding_vector,
-                    "metadata": metadata_sub_document # Le dictionnaire de métadonnées imbriqué
-                }
-                final_chunks_for_db.append(chunk_for_db)
+                    "metadata": metadata
+                })
 
         except Exception as e:
-            logger.error(f"Error embedding batch {i//batch_size + 1} with {current_embedding_provider}: {e}", exc_info=True)
+            logger.error(
+                f"Error embedding batch {batch_num} with {provider}: {e}",
+                exc_info=True
+            )
         
     logger.info(f"Finished embedding generation. Successfully structured {len(final_chunks_for_db)} chunks for DB out of {len(processed_chunks)}.")
     return final_chunks_for_db
-
-def _create_test_chunks() -> List[ProcessedChunk]:
-    """
-    Create sample processed chunks for testing.
-    
-    Returns:
-        List of sample processed chunks
-    """
-    return [
-        {
-            "chunk_id": "test001_chunk_001",
-            "arxiv_id": "test001",
-            "text_chunk": "This is the first chunk of text from document one. It discusses reinforcement learning.",
-            "original_document_title": "A Study of Interesting Things",
-            "source_document_metadata": {
-                "title": "A Study of Interesting Things",
-                "primary_category": "cs.AI",
-                "authors": ["A. B."]
-            }
-        },
-        {
-            "chunk_id": "test001_chunk_002",
-            "arxiv_id": "test001",
-            "text_chunk": "The second chunk continues exploring concepts related to robotics and AI.",
-            "original_document_title": "A Study of Interesting Things",
-            "source_document_metadata": {
-                "title": "A Study of Interesting Things",
-                "primary_category": "cs.AI",
-                "authors": ["A. B."]
-            }
-        }
-    ]
-
-def _check_provider_configuration(provider: str) -> bool:
-    """
-    Check if the embedding provider is properly configured.
-    
-    Args:
-        provider: Name of the embedding provider to check
-        
-    Returns:
-        True if the provider is properly configured, False otherwise
-    """
-    if provider == "openai":
-        if not settings.OPENAI_API_KEY:
-            logger.error("OPENAI_API_KEY not found. Skipping OpenAI embedding test.")
-            return False
-        return True
-        
-    elif provider == "huggingface":
-        return True
-        
-    elif provider == "ollama":
-        if not (settings.OLLAMA_BASE_URL and settings.OLLAMA_EMBEDDING_MODEL_NAME):
-            logger.error(
-                "OLLAMA_BASE_URL or OLLAMA_EMBEDDING_MODEL_NAME not set. "
-                "Skipping Ollama embedding test."
-            )
-            return False
-            
-        logger.info(
-            f"Attempting Ollama test. Ensure Ollama is running at {settings.OLLAMA_BASE_URL} "
-            f"and model '{settings.OLLAMA_EMBEDDING_MODEL_NAME}' is pulled."
-        )
-        return True
-        
-    return False
-
-if __name__ == "__main__":
-    from config.logging_config import setup_logging
-    setup_logging(level="INFO")
-
-    logger.info("--- Starting embedder.py test run ---")
-
-    # Create test data
-    sample_processed_chunks = _create_test_chunks()
-    provider_to_test = settings.DEFAULT_EMBEDDING_PROVIDER
-    logger.info(f"Testing with embedding provider: {provider_to_test}")
-
-    # Check provider configuration
-    if _check_provider_configuration(provider_to_test):
-        try:
-            structured_chunks_for_db = generate_embeddings_for_chunks(
-                sample_processed_chunks,
-                batch_size=2
-            )
-
-            if structured_chunks_for_db:
-                logger.info(
-                    f"Successfully generated structured data for {len(structured_chunks_for_db)} "
-                    f"chunks using '{provider_to_test}'."
-                )
-                
-                for i, chunk_data in enumerate(structured_chunks_for_db):
-                    logger.info(f"--- Chunk {i+1} for DB ({chunk_data['chunk_id']}) ---")
-                    logger.info(f"  Text: {chunk_data['text_chunk'][:50]}...")
-                    logger.info(f"  Embedding Vector (first 3 dims): {chunk_data['embedding'][:3]}...")
-                    logger.info(f"  Metadata field: {chunk_data['metadata']}")
-                    
-                    # Verify required metadata fields
-                    assert "arxiv_id" in chunk_data["metadata"], "arxiv_id missing in metadata"
-                    assert "embedding_model" in chunk_data["metadata"], "embedding_model missing in metadata"
-                    assert chunk_data["metadata"].get("primary_category") == "cs.AI"
-            else:
-                logger.warning(
-                    f"No structured chunks were generated in the test run for provider "
-                    f"'{provider_to_test}'."
-                )
-        except Exception as e:
-            logger.error(
-                f"Error during embedding generation test for provider '{provider_to_test}': {e}",
-                exc_info=True
-            )
-    else:
-        logger.info(
-            f"Skipping test for provider '{provider_to_test}' due to missing configuration "
-            "or setup."
-        )
-
-    logger.info("--- embedder.py test run finished ---")
