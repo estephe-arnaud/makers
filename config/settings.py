@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
     HUGGINGFACE_API_KEY: Optional[str] = None
     TAVILY_API_KEY: Optional[str] = None
     WANDB_API_KEY: Optional[str] = None
@@ -54,11 +55,13 @@ class Settings(BaseSettings):
     LANGGRAPH_CHECKPOINTS_COLLECTION: str = "langgraph_checkpoints"
 
     # --- LLM Provider Configuration ---
-    DEFAULT_LLM_MODEL_PROVIDER: str = "ollama"
+    DEFAULT_LLM_MODEL_PROVIDER: str = "groq"  # Groq for unlimited/free tier usage
     DEFAULT_OPENAI_GENERATIVE_MODEL: str = "gpt-4"
     HUGGINGFACE_REPO_ID: Optional[str] = "mistralai/Mixtral-8x7B-Instruct-v0.1"
     OLLAMA_BASE_URL: Optional[str] = "http://localhost:11434"
     OLLAMA_GENERATIVE_MODEL_NAME: Optional[str] = "mistral"
+    GROQ_MODEL_NAME: Optional[str] = "llama-3.1-8b-instant"  # Smaller model for unlimited usage
+    GOOGLE_GEMINI_MODEL_NAME: Optional[str] = "gemini-pro"  # Default Gemini model
 
     # --- Embedding Configuration ---
     DEFAULT_EMBEDDING_PROVIDER: str = "ollama"
@@ -113,6 +116,8 @@ if __name__ == "__main__":
     print(f"  HuggingFace Repo ID: {settings.HUGGINGFACE_REPO_ID}")
     print(f"  Ollama Model: {settings.OLLAMA_GENERATIVE_MODEL_NAME}")
     print(f"  Ollama Base URL: {settings.OLLAMA_BASE_URL}")
+    print(f"  Groq Model: {settings.GROQ_MODEL_NAME}")
+    print(f"  Google Gemini Model: {settings.GOOGLE_GEMINI_MODEL_NAME}")
 
     print("\n--- Embedding Configuration ---")
     print(f"Default Embedding Provider: {settings.DEFAULT_EMBEDDING_PROVIDER}")
@@ -128,6 +133,7 @@ if __name__ == "__main__":
     print(f"HuggingFace API Key: {'✓' if settings.HUGGINGFACE_API_KEY else '✗'}")
     print(f"Anthropic API Key: {'✓' if settings.ANTHROPIC_API_KEY else '✗'}")
     print(f"Groq API Key: {'✓' if settings.GROQ_API_KEY else '✗'}")
+    print(f"Google API Key: {'✓' if settings.GOOGLE_API_KEY else '✗'}")
     print(f"Tavily API Key: {'✓' if settings.TAVILY_API_KEY else '✗'}")
     print(f"Weights & Biases API Key: {'✓' if settings.WANDB_API_KEY else '✗'}")
 

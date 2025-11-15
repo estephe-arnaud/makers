@@ -165,7 +165,7 @@ The system uses a **modular Tool Registry** pattern:
 - **Specialized Analysis**: CrewAI (two-agent complementary architecture)
 - **RAG & Indexing**: LlamaIndex
 - **Vector Database**: MongoDB Atlas
-- **LLM Providers**: OpenAI, Hugging Face, Ollama (centralized factory)
+- **LLM Providers**: OpenAI, Hugging Face, Ollama, Groq, Google Gemini (centralized factory)
 - **API**: FastAPI, Uvicorn
 - **Experiment Tracking**: Weights & Biases
 
@@ -175,7 +175,7 @@ The system uses a **modular Tool Registry** pattern:
 src/
 ├── core/            # Core foundations (state, constants)
 ├── services/        # Reusable technical services
-│   ├── llm.py       # LLM factory (OpenAI, HuggingFace, Ollama)
+│   ├── llm.py       # LLM factory (OpenAI, HuggingFace, Ollama, Groq, Google Gemini)
 │   ├── storage/     # MongoDB, Vector Store, Checkpointer
 │   ├── ingestion/   # Data ingestion pipeline
 │   └── evaluation/  # Evaluation services (RAG, synthesis)
@@ -195,7 +195,7 @@ src/
 - **Python 3.11+**
 - **Poetry**: Dependency management
 - **MongoDB**: Atlas or local instance
-- **Ollama** (default): Ensure Ollama server is running
+- **Groq API Key** (default): Get your free API key from [console.groq.com](https://console.groq.com)
 
 ### Installation
 
@@ -210,19 +210,29 @@ src/
    cp .env.example .env
    ```
    
-   Edit `.env`:
-   ```env
-   MONGODB_URI=mongodb://localhost:27017
-   MONGO_DATABASE_NAME=makers_db
-   
-   # For OpenAI
-   DEFAULT_LLM_MODEL_PROVIDER=openai
-   OPENAI_API_KEY=your_key_here
-   
-   # For Ollama (default)
-   DEFAULT_LLM_MODEL_PROVIDER=ollama
-   OLLAMA_BASE_URL=http://localhost:11434
-   ```
+          Edit `.env`:
+          ```env
+          MONGODB_URI=mongodb://localhost:27017
+          MONGO_DATABASE_NAME=makers_db
+          
+          # For Groq (default - unlimited/free tier with smaller model)
+          DEFAULT_LLM_MODEL_PROVIDER=groq
+          GROQ_API_KEY=your_groq_api_key_here
+          GROQ_MODEL_NAME=llama-3.1-8b-instant
+          
+          # For Google Gemini
+          DEFAULT_LLM_MODEL_PROVIDER=google
+          GOOGLE_API_KEY=your_google_api_key_here
+          GOOGLE_GEMINI_MODEL_NAME=gemini-pro
+          
+          # For OpenAI
+          DEFAULT_LLM_MODEL_PROVIDER=openai
+          OPENAI_API_KEY=your_key_here
+          
+          # For Ollama
+          DEFAULT_LLM_MODEL_PROVIDER=ollama
+          OLLAMA_BASE_URL=http://localhost:11434
+          ```
 
 3. **Install dependencies**:
    ```bash
