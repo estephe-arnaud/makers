@@ -331,7 +331,7 @@ poetry run python -m src.application.cli.run_evaluation \
 Start the FastAPI server:
 
 ```bash
-poetry run uvicorn src.application.api.main:app --reload --host 0.0.0.0 --port 8000
+poetry run uvicorn src.application.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Access:
@@ -360,7 +360,7 @@ docker run -e OPENAI_API_KEY=$OPENAI_API_KEY \
            python -m src.application.cli.run_makers --query "What are the latest advancements in face analysis"
 
 # Run API server
-docker run -p 8000:8000 \
+docker run -p 127.0.0.1:8000:8000 \
            -e OPENAI_API_KEY=$OPENAI_API_KEY \
            makers-app \
            uvicorn src.application.api.main:app --host 0.0.0.0 --port 8000
