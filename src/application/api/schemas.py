@@ -24,14 +24,6 @@ class ConfigOverrides(BaseModel):
         None,
         description="Override embedding provider (e.g., 'huggingface', 'openai', 'ollama')"
     )
-    mongodb_uri: Optional[str] = Field(
-        None,
-        description="Override MongoDB URI"
-    )
-    mongodb_database: Optional[str] = Field(
-        None,
-        description="Override MongoDB database name"
-    )
 
 
 class MakersQueryRequest(BaseModel):
@@ -71,7 +63,7 @@ class MakersOutputMessage(BaseModel):
     
     @classmethod
     def from_dict(cls, msg_dict: Dict[str, Any]) -> "MakersOutputMessage":
-        """Create a MakersOutputMessage from a dictionary (deserialized from MongoDB).
+        """Create a MakersOutputMessage from a dictionary (deserialized from SQLite).
         
         Handles both simple dict format and LangChain serialization format.
         """
@@ -147,7 +139,7 @@ class HealthResponse(BaseModel):
     """Detailed health check response."""
     status: str = Field(..., description="Overall health status")
     message: str = Field(..., description="Health check message")
-    mongodb: str = Field(..., description="MongoDB connection status")
+    sqlite: str = Field(..., description="SQLite connection status")
     llm_provider: str = Field(..., description="Configured LLM provider")
     embedding_provider: str = Field(..., description="Configured embedding provider")
 
@@ -192,7 +184,7 @@ class IngestionRequest(BaseModel):
     )
     collection_name: Optional[str] = Field(
         None,
-        description="MongoDB collection name (default: from settings)"
+        description="ChromaDB collection name (default: from settings)"
     )
     vector_index_name: Optional[str] = Field(
         None,
@@ -215,6 +207,6 @@ class IngestionResponse(BaseModel):
     downloaded_count: int = Field(..., description="Number of documents downloaded/copied")
     processed_count: int = Field(..., description="Number of documents processed")
     embedded_count: int = Field(..., description="Number of chunks embedded")
-    stored_count: int = Field(..., description="Number of chunks stored in MongoDB")
+    stored_count: int = Field(..., description="Number of chunks stored in ChromaDB")
     failed_count: int = Field(..., description="Number of failed operations")
     message: Optional[str] = Field(None, description="Additional status message")

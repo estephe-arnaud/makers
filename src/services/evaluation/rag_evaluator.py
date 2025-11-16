@@ -82,7 +82,7 @@ class RagEvaluator:
             },
             {
                 "query_id": "demo_q2",
-                "query_text": "How is reinforcement learning applied to drone navigation?",
+                "query_text": "What are the latest advancements in face analysis",
                 "expected_relevant_chunk_ids": ["db_test002_chunk_001"]
             },
             {
@@ -246,7 +246,7 @@ if __name__ == "__main__":
                 json.dump([
                     {
                         "query_id": "dummy_q1",
-                        "query_text": "Test query for dummy dataset.",
+                        "query_text": "What are the latest advancements in face analysis",
                         "expected_relevant_chunk_ids": ["id_that_might_exist_123"]
                     }
                 ], f)

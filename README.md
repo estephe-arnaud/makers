@@ -5,14 +5,14 @@
 
 ## 🚀 Overview
 
-**MAKERS** is an advanced autonomous research system that combines Large Language Models (LLMs) with strategic tool orchestration. It leverages **LangGraph** for workflow orchestration, **LlamaIndex** for Retrieval Augmented Generation (RAG), and **MongoDB** for vector storage and persistent state management.
+**MAKERS** is an advanced autonomous research system that combines Large Language Models (LLMs) with strategic tool orchestration. It leverages **LangGraph** for workflow orchestration, **LlamaIndex** for Retrieval Augmented Generation (RAG), **ChromaDB** for vector storage, and **SQLite** for persistent state management (LangGraph checkpoints).
 
 ### Core Capabilities
 
 *   **Autonomous Research Agent**: Unified ReAct agent that dynamically orchestrates multiple information sources
 *   **Multi-Source Retrieval**: Intelligent decision-making between ArXiv search (external) and knowledge base RAG (internal)
 *   **Deep Document Analysis**: Specialized CrewAI team for comprehensive PDF analysis
-*   **Stateful Workflows**: Persistent, resumable research sessions with MongoDB checkpointing
+*   **Stateful Workflows**: Persistent, resumable research sessions with SQLite checkpointing
 *   **Long-Term Memory**: Conversation summarization prevents prompt explosion while preserving context
 
 ## 🏗️ Architecture
@@ -29,7 +29,7 @@ The system implements a **multi-node LangGraph workflow** with separated concern
                                       ▼
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║                    LANGGRAPH WORKFLOW                                     ║
-║         StateGraph with MongoDB Checkpointing                             ║
+║         StateGraph with SQLite Checkpointing                               ║
 ╠═══════════════════════════════════════════════════════════════════════════╣
 ║                                                                           ║
 ║  ╔═════════════════════════════════════════════════════════════════════╗  ║
@@ -137,7 +137,7 @@ The system implements a **multi-node LangGraph workflow** with separated concern
 
 5. **State Management** (`core/state.py`):
    - **GraphState**: TypedDict with `messages`, `conversation_summary`, `user_query`, `final_output`, `next_action`, `error_message`, `iteration_count`
-   - **Checkpointing**: MongoDB-based persistence via `services/storage/checkpointer.py`
+   - **Checkpointing**: SQLite-based persistence via `services/storage/checkpointer.py`
    - **Resumability**: Thread-based state recovery for long-running sessions
 
 ### Tool Registry Architecture
@@ -165,7 +165,8 @@ The system uses a **modular Tool Registry** pattern:
 - **Agent Framework**: LangChain (ReAct pattern)
 - **Specialized Analysis**: CrewAI (two-agent complementary architecture)
 - **RAG & Indexing**: LlamaIndex
-- **Vector Database**: MongoDB Atlas
+- **Vector Database**: ChromaDB (local, with automatic cosine similarity indexing)
+- **State Management**: SQLite (for LangGraph checkpoints, local, no server required)
 - **LLM Providers**: OpenAI, Hugging Face, Ollama, Groq, Google Gemini (centralized factory)
 - **Embedding Providers**: HuggingFace (default, local/unlimited/free), Ollama (local), OpenAI (API)
 - **API**: FastAPI, Uvicorn
@@ -178,7 +179,7 @@ src/
 ├── core/            # Core foundations (state, constants)
 ├── services/        # Reusable technical services
 │   ├── llm.py       # LLM factory (OpenAI, HuggingFace, Ollama, Groq, Google Gemini)
-│   ├── storage/     # MongoDB, Vector Store, Checkpointer
+│   ├── storage/     # ChromaDB (vector store), SQLite (checkpoints), Checkpointer
 │   ├── ingestion/   # Data ingestion pipeline
 │   └── evaluation/  # Evaluation services (RAG, synthesis)
 ├── agentic/         # Agentic system
@@ -195,9 +196,7 @@ src/
 ### Prerequisites
 
 - **Python 3.11+**
-- **Poetry**: Dependency management
-- **Docker**: For MongoDB (recommended)
-- **MongoDB**: Docker (recommended) or Atlas (cloud) or local instance
+- **Poetry**: Dependency management (required)
 - **Groq API Key** (default): Get your free API key from [console.groq.com](https://console.groq.com)
 
 ### Installation
@@ -215,13 +214,10 @@ src/
    
           Edit `.env`:
           ```env
-          MONGODB_URI=mongodb://localhost:27017
-          MONGO_DATABASE_NAME=makers_db
-          
           # LLM Provider (default: Groq - unlimited/free tier)
           DEFAULT_LLM_MODEL_PROVIDER=groq
           GROQ_API_KEY=your_groq_api_key_here
-          GROQ_MODEL_NAME=llama-3.1-8b-instant
+          GROQ_MODEL_NAME=llama-3.3-70b-versatile
           
           # Embedding Provider (default: HuggingFace - local, unlimited, free)
           DEFAULT_EMBEDDING_PROVIDER=huggingface
@@ -253,101 +249,19 @@ src/
    poetry install
    ```
 
-4. **Set up MongoDB** (recommended: Docker with volume):
+4. **Set up ChromaDB (Vector Storage)**:
 
-   **Option A: Docker with Volume (Recommended for Local Development)**
+   ChromaDB is used for vector storage and is automatically configured. No setup required! The database is stored locally at `data/chroma_db/` by default.
 
-   The easiest way to run MongoDB locally is using Docker with a persistent volume:
+   **Note**: ChromaDB automatically creates vector indexes with cosine similarity, so you get optimized vector search out of the box.
 
-   ```bash
-   # Create a volume for data persistence (survives container removal)
-   docker volume create mongodb_data
+5. **Set up SQLite (for LangGraph checkpoints)**:
 
-   # Run MongoDB with volume mount
-   docker run -d \
-     --name mongodb \
-     -p 27017:27017 \
-     -v mongodb_data:/data/db \
-     mongo:latest
+   SQLite is used for storing LangGraph conversation checkpoints (state management). No setup required! The database is automatically created at `data/checkpoints.sqlite` by default.
 
-   # Stop MongoDB (data is preserved in volume)
-   docker stop mongodb
+   **Note**: SQLite is a lightweight, serverless database that requires no configuration. All checkpoint data is stored locally in a single file.
 
-   # Start MongoDB again (data is still there)
-   docker start mongodb
-
-   # Remove container (data is preserved in volume)
-   docker rm mongodb
-
-   # Recreate container with same volume (all your data is back!)
-   docker run -d \
-     --name mongodb \
-     -p 27017:27017 \
-     -v mongodb_data:/data/db \
-     mongo:latest
-
-   # View MongoDB logs
-   docker logs mongodb
-
-   # ⚠️ WARNING: To completely remove MongoDB and all data:
-   docker stop mongodb
-   docker rm mongodb
-   docker volume rm mongodb_data  # This deletes all data!
-   ```
-
-   The default connection string is already configured in `.env.example`:
-   ```env
-   MONGODB_URI=mongodb://localhost:27017/
-   MONGO_DATABASE_NAME=makers_db
-   ```
-
-   **Note**: This setup includes:
-   - MongoDB latest version
-   - Persistent data volumes (data survives container restarts and removal)
-   - No authentication by default (for local development)
-   - Easy to start/stop/restart without losing data
-
-   **Option B: MongoDB Atlas (Cloud - For Production)**
-
-   1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register)
-   2. Create a new cluster (free tier: M0)
-   3. Create a database user:
-      - Go to **Database Access** → **Add New Database User**
-      - Choose **Password** authentication
-      - Save the username and password securely
-   4. Configure network access:
-      - Go to **Network Access** → **Add IP Address**
-      - For development: click **Allow Access from Anywhere** (0.0.0.0/0)
-      - For production: add your specific IP addresses
-   5. Get your connection string:
-      - Go to **Clusters** → click **Connect** on your cluster
-      - Choose **Connect your application**
-      - Copy the connection string (format: `mongodb+srv://<username>:<password>@cluster.mongodb.net/`)
-   6. Update your `.env` file:
-      ```env
-      MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/
-      MONGO_DATABASE_NAME=makers_db
-      ```
-      Replace `<username>` and `<password>` with your database user credentials.
-
-   **Option C: Local MongoDB Installation**
-
-   If you prefer to install MongoDB directly (not recommended):
-
-   **Using Homebrew (macOS):**
-   ```bash
-   brew tap mongodb/brew
-   brew install mongodb-community
-   brew services start mongodb-community
-   ```
-
-   Then use in your `.env`:
-   ```env
-   MONGODB_URI=mongodb://localhost:27017/
-   MONGO_DATABASE_NAME=makers_db
-   ```
-
-5. **(Optional) Connect to Weights & Biases**:
+6. **(Optional) Connect to Weights & Biases**:
    ```bash
    poetry run wandb login
    ```
@@ -368,7 +282,7 @@ To download PDFs from ArXiv (requires `--download_from_arxiv`):
 ```bash
 poetry run python -m src.application.cli.run_ingestion \
   --download_from_arxiv \
-  --query "explainable AI in robotics" \
+  --query "What are the latest advancements in face analysis" \
   --max_results 10
 ```
 
@@ -380,7 +294,7 @@ poetry run python -m src.application.cli.run_ingestion \
 - `--max_results`: Maximum number of papers to download (default: 10, only with `--download_from_arxiv`)
 - `--sort_by`: Sort criterion (relevance, lastUpdatedDate, submittedDate, only with `--download_from_arxiv`)
 - `--corpus_name`: Specific name for the corpus (optional)
-- `--collection_name`: MongoDB collection name (default: `makers_chunks`)
+- `--collection_name`: ChromaDB collection name (default: `arxiv_chunks`)
 
 ### 2. Run MAKERS Workflow
 
@@ -388,7 +302,7 @@ Submit a research query to the autonomous agent:
 
 ```bash
 poetry run python -m src.application.cli.run_makers \
-  --query "What are the latest advancements in using large language models for robot task planning?"
+  --query "What are the latest advancements in face analysis"
 ```
 
 **Options:**
@@ -429,7 +343,7 @@ Access:
 ```bash
 curl -X POST "http://localhost:8000/invoke_makers" \
   -H "Content-Type: application/json" \
-  -d '{"query": "What are the latest trends in reinforcement learning for robotics?"}'
+  -d '{"query": "What are the latest advancements in face analysis"}'
 ```
 
 ## 🐳 Docker
@@ -442,14 +356,12 @@ docker build -t makers-app .
 
 # Run CLI
 docker run -e OPENAI_API_KEY=$OPENAI_API_KEY \
-           -e MONGODB_URI=$MONGODB_URI \
            makers-app \
-           python -m src.application.cli.run_makers --query "Your query"
+           python -m src.application.cli.run_makers --query "What are the latest advancements in face analysis"
 
 # Run API server
 docker run -p 8000:8000 \
            -e OPENAI_API_KEY=$OPENAI_API_KEY \
-           -e MONGODB_URI=$MONGODB_URI \
            makers-app \
            uvicorn src.application.api.main:app --host 0.0.0.0 --port 8000
 ```

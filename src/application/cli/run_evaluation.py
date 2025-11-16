@@ -14,7 +14,6 @@ from src.services.storage.vector_store import RetrievalEngine
 from src.services.evaluation.rag_evaluator import RagEvaluator, RagEvaluationMetrics
 from src.services.evaluation.synthesis_evaluator import SynthesisEvaluator
 from src.services.evaluation.metrics_logger import WandBMetricsLogger
-from src.services.storage.mongodb import MongoDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,6 @@ async def run_rag_evaluation(
     wb_logger: WandBMetricsLogger,
     rag_eval_dataset_path_str: Optional[str],
     collection_name: str,
-    vector_index_name: str,
     top_k: int
 ) -> Optional[RagEvaluationMetrics]:
     """Run RAG evaluation pipeline."""
@@ -49,8 +47,7 @@ async def run_rag_evaluation(
     
     try:
         retrieval_engine = RetrievalEngine(
-            collection_name=collection_name,
-            vector_index_name=vector_index_name
+            collection_name=collection_name
         )
     except Exception as e:
         logger.error(f"Failed to initialize RetrievalEngine: {e}", exc_info=True)
@@ -208,7 +205,6 @@ async def async_main(args: argparse.Namespace):
                 wb_logger=wb_logger,
                 rag_eval_dataset_path_str=args.rag_dataset,
                 collection_name=args.collection_name,
-                vector_index_name=args.vector_index_name,
                 top_k=args.rag_top_k
             )
 
@@ -253,14 +249,8 @@ def main():
     parser.add_argument(
         "--collection_name",
         type=str,
-        default=MongoDBManager.DEFAULT_CHUNK_COLLECTION_NAME,
-        help="MongoDB collection name"
-    )
-    parser.add_argument(
-        "--vector_index_name",
-        type=str,
-        default=MongoDBManager.DEFAULT_VECTOR_INDEX_NAME,
-        help="MongoDB vector index name"
+        default=settings.CHROMA_COLLECTION_NAME,
+        help="ChromaDB collection name"
     )
     
     # Synthesis evaluation args

@@ -151,7 +151,7 @@ def preprocess_parsed_documents(
     logger.info(f"Starting preprocessing for {len(parsed_documents)} parsed documents.")
 
     for doc_idx, doc in enumerate(parsed_documents):
-        logger.info(
+        logger.debug(
             f"Preprocessing document {doc_idx + 1}/{len(parsed_documents)}: "
             f"{doc['arxiv_id']}"
         )

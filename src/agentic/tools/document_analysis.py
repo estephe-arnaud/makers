@@ -13,7 +13,12 @@ from typing import Dict, Any, List
 from langchain_core.tools import tool
 import requests
 from pypdf import PdfReader
-from crewai import Agent, Task, Crew, Process
+# Note: crewai is not in dependencies - install separately if you want to use this tool
+# This tool is currently disabled for security reasons (see tools/__init__.py)
+try:
+    from crewai import Agent, Task, Crew, Process
+except ImportError:
+    Agent = Task = Crew = Process = None  # Type stubs for when crewai is not installed
 
 from src.services.llm import get_llm
 from config.settings import settings

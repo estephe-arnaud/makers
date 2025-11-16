@@ -310,24 +310,18 @@ if __name__ == "__main__":
         logger.info(f"Evaluator for test run using judge LLM: {type(evaluator.judge_llm)}")
 
         # Test data
-        test_query = "What are the key benefits of using reinforcement learning in robotics, and what are some notable challenges?"
+        test_query = "What are the latest advancements in face analysis"
         test_context = """
-        Reinforcement learning (RL) in robotics offers several advantages. One key benefit is the ability for robots to learn complex behaviors
-        in dynamic environments without explicit programming for every scenario. For instance, RL allows robots to adapt to unforeseen
-        obstacles or changes in task requirements. Another benefit is the potential for discovering novel solutions that human programmers
-        might not conceive. Robots can learn manipulation skills, navigation strategies, and even human-robot interaction through trial and error.
+        Face analysis has seen remarkable progress in recent years, driven by advances in deep learning and computer vision. One key development is the improvement in face recognition accuracy, with modern systems achieving near-human performance on standard benchmarks. Deep convolutional neural networks (CNNs) and transformer architectures have enabled robust feature extraction that works across different lighting conditions, poses, and expressions.
 
-        However, applying RL to real-world robotics faces significant challenges. Sample inefficiency is a major hurdle; robots often require
-        a vast number of interactions with the environment to learn a task, which can be time-consuming and costly, especially with physical hardware.
-        Safety during learning is another critical concern, as a robot learning by trial and error might perform actions that could damage itself,
-        its surroundings, or humans. The sim-to-real gap also poses a problem: models trained in simulation often do not transfer well to the real
-        world due to discrepancies in physics modeling and sensory inputs. Finally, reward shaping can be difficult; designing effective reward
-        functions that guide the robot towards the desired behavior without leading to unintended consequences is a complex art. Some papers (e.g. ArXiv:123.456) mention new methods for safe exploration.
+        Another significant advancement is in facial expression recognition, which has applications in emotion detection, human-computer interaction, and mental health monitoring. Recent work has focused on micro-expression detection, which captures subtle facial movements that occur in a fraction of a second. Additionally, face analysis now includes demographic attribute estimation, age prediction, and gender classification, though these applications raise important ethical considerations regarding privacy and bias.
+
+        However, face analysis still faces several challenges. One major issue is robustness to adversarial attacks, where small perturbations to input images can cause misclassification. Another challenge is handling occlusions, such as masks, sunglasses, or hands covering parts of the face. The domain gap between training and deployment environments also remains problematic, as models trained on one dataset may not generalize well to different populations or imaging conditions. Finally, there are growing concerns about privacy, consent, and the potential for misuse of face analysis technology. Some papers (e.g. ArXiv:123.456) mention new methods for privacy-preserving face recognition.
         """
         test_synthesis = """
-        Reinforcement learning in robotics offers significant benefits but also presents notable challenges. On the positive side, RL enables robots to learn complex behaviors in dynamic environments without needing explicit programming for every possible scenario. This adaptability is particularly valuable for handling unforeseen obstacles or changing task requirements. Additionally, RL can lead to the discovery of novel solutions that might not be conceived by human programmers, spanning areas like manipulation skills, navigation strategies, and human-robot interaction.
+        Face analysis has experienced significant technological progress, offering both opportunities and challenges. On the positive side, deep learning has enabled substantial improvements in face recognition accuracy, with systems now approaching human-level performance. Modern architectures, including CNNs and transformers, have made it possible to extract robust facial features that work across varying conditions. The field has also expanded beyond simple recognition to include expression analysis, demographic estimation, and micro-expression detection, opening new applications in emotion recognition and human-computer interaction.
 
-        However, several challenges must be addressed. A major issue is sample inefficiency, as robots typically require numerous environment interactions to learn tasks, which can be time-consuming and expensive, especially with physical hardware. Safety during the learning process is another critical concern, since trial-and-error learning could potentially lead to actions that damage the robot, its environment, or humans. The sim-to-real gap presents another significant challenge, as models trained in simulation often fail to transfer effectively to real-world applications due to differences in physics modeling and sensory inputs. Finally, reward shaping remains a complex task, requiring careful design of reward functions that guide robots toward desired behaviors without unintended consequences.
+        However, several challenges persist. Robustness to adversarial attacks remains a concern, as small input perturbations can cause system failures. Handling occlusions and variations in pose, lighting, and expression continues to be difficult. The domain gap between training and deployment environments also limits real-world applicability, as models may not generalize well across different populations or imaging conditions. Perhaps most critically, face analysis raises important ethical questions about privacy, consent, and the potential for bias and misuse, requiring careful consideration of the societal implications of these technologies.
         """
 
         async def run_evaluation_test():

@@ -40,7 +40,7 @@ def arxiv_search_tool(
 
     Args:
         query: A specific and targeted search query.
-               Examples: "explainable AI in robotics", "author:Geoffrey Hinton", "cat:cs.CV"
+               Examples: "What are the latest advancements in face analysis", "author:Geoffrey Hinton", "cat:cs.CV"
         max_results: The maximum number of papers to return. Keep this low (e.g., 3 to 5)
                      to avoid overwhelming the analysis stage.
         sort_by: The criterion for sorting results. Options: 'relevance', 'lastUpdatedDate', 'submittedDate'.

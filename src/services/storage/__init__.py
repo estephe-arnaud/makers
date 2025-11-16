@@ -1,6 +1,6 @@
 """
 Storage Services
 
-Services de stockage : MongoDB, Vector Store, Checkpointer.
+Storage services: ChromaDB (vector store), SQLite (checkpoints), Checkpointer.
 """
 

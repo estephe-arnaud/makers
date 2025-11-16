@@ -11,7 +11,7 @@ It provides endpoints for:
 - POST /ingest: Ingest documents from local directory or ArXiv
 
 The API supports:
-- Configuration overrides (LLM provider, embedding provider, MongoDB)
+- Configuration overrides (LLM provider, embedding provider)
 - Document ingestion from local PDFs or ArXiv
 - Cross-Origin Resource Sharing (CORS)
 - Request/response validation using Pydantic models
@@ -34,7 +34,7 @@ from langchain_core.runnables import RunnableConfig
 from config.settings import settings
 from config.logging_config import setup_logging
 from src.agentic.workflow.runner import run_workflow
-from src.services.storage.checkpointer import MongoDBSaver
+from src.services.storage.checkpointer import get_checkpointer, get_sqlite_connection
 from src.application.api.schemas import (
     MakersQueryRequest, MakersResponse, ErrorResponse, MakersOutputMessage,
     ThreadSummary, ThreadListResponse, HealthResponse,
@@ -42,9 +42,8 @@ from src.application.api.schemas import (
 )
 from src.application.cli.run_ingestion import (
     IngestionConfig, setup_corpus_directories, download_papers,
-    process_documents, generate_embeddings, _create_indexes
+    process_documents, setup_chromadb
 )
-from src.services.storage.mongodb import MongoDBManager
 
 # Configure logging
 setup_logging(level="INFO" if not settings.DEBUG else "DEBUG")
@@ -102,7 +101,7 @@ HTML_CONTENT = """
         <h2>Test <code>/invoke_makers</code> (POST)</h2>
         <form id="invokeForm">
             <label for="query">Query:</label>
-            <textarea id="query" name="query" rows="3" required>What are the latest advancements in using large language models for robot task planning?</textarea>
+            <textarea id="query" name="query" rows="3" required>What are the latest advancements in face analysis</textarea>
             
             <label for="thread_id">Thread ID (optional):</label>
             <input type="text" id="thread_id" name="thread_id" placeholder="e.g., api_thread_...">
@@ -169,8 +168,7 @@ async def startup_event():
     if provider == "openai" and not settings.OPENAI_API_KEY:
         logger.error("CRITICAL: OpenAI selected but OPENAI_API_KEY not configured. MAKERS functionality will be impaired.")
     
-    if not settings.MONGODB_URI:
-        logger.error("CRITICAL: MONGODB_URI not configured. MAKERS checkpointing and RAG will be impaired.")
+    # SQLite checkpointer is automatically configured via settings.SQLITE_DB_PATH
 
 def _log_config_overrides(config: Optional[ConfigOverrides]) -> None:
     """Log configuration overrides (actual implementation requires settings refactoring)."""
@@ -180,16 +178,12 @@ def _log_config_overrides(config: Optional[ConfigOverrides]) -> None:
         logger.info(f"Config override: LLM provider = {config.llm_provider}")
     if config.embedding_provider:
         logger.info(f"Config override: Embedding provider = {config.embedding_provider}")
-    if config.mongodb_uri:
-        logger.info("Config override: MongoDB URI (masked)")
-    if config.mongodb_database:
-        logger.info(f"Config override: MongoDB database = {config.mongodb_database}")
 
 
 def _convert_messages(messages: List) -> Optional[List[MakersOutputMessage]]:
     """Convert LangChain messages to API schema.
     
-    Handles both BaseMessage objects (from workflow) and dicts (from MongoDB deserialization).
+    Handles both BaseMessage objects (from workflow) and dicts (from SQLite deserialization).
     """
     if not isinstance(messages, list):
         return None
@@ -198,7 +192,7 @@ def _convert_messages(messages: List) -> Optional[List[MakersOutputMessage]]:
     for msg in messages:
         try:
             if isinstance(msg, dict):
-                # Message deserialized from MongoDB (dict format)
+                # Message deserialized from SQLite (dict format)
                 converted.append(MakersOutputMessage.from_dict(msg))
             elif hasattr(msg, 'type') and hasattr(msg, 'content'):
                 # BaseMessage object from LangChain
@@ -231,14 +225,16 @@ def _extract_user_query(channel_values: Dict, messages: List) -> Optional[str]:
     return content[:100] if len(content) > 100 else content
 
 
-async def _check_mongodb_connection() -> str:
-    """Check MongoDB connection and return status string."""
+async def _check_sqlite_connection() -> str:
+    """Check SQLite connection and return status string."""
     try:
-        checkpointer = MongoDBSaver()
-        await checkpointer.collection.find_one({}, limit=1)
+        checkpointer = await get_checkpointer()
+        # Try to list checkpoints to verify connection
+        async for _ in checkpointer.alist(None, limit=1):
+            break
         return "connected"
     except Exception as e:
-        logger.warning(f"MongoDB health check failed: {e}")
+        logger.warning(f"SQLite health check failed: {e}")
         return f"error: {str(e)[:50]}"
 
 
@@ -290,7 +286,7 @@ async def health_check():
     return HealthResponse(
         status="healthy",
         message=f"{settings.PROJECT_NAME} API is running",
-        mongodb=await _check_mongodb_connection(),
+        sqlite=await _check_sqlite_connection(),
         llm_provider=settings.DEFAULT_LLM_MODEL_PROVIDER,
         embedding_provider=settings.DEFAULT_EMBEDDING_PROVIDER
     )
@@ -300,39 +296,46 @@ async def health_check():
 async def list_threads(limit: int = 50):
     """List all conversation threads."""
     try:
-        checkpointer = MongoDBSaver()
-        pipeline = [
-            {"$sort": {"thread_ts": -1}},
-            {"$group": {
-                "_id": "$thread_id",
-                "thread_ts": {"$first": "$thread_ts"},
-                "checkpoint": {"$first": "$checkpoint"}
-            }},
-            {"$sort": {"thread_ts": -1}},
-            {"$limit": limit}
-        ]
-        
+        checkpointer = await get_checkpointer()
         threads = []
-        async for doc in checkpointer.collection.aggregate(pipeline):
-            try:
-                checkpoint = checkpointer.serde.loads(doc.get("checkpoint", "{}"))
-                channel_values = checkpoint.get("channel_values", {})
-                messages = channel_values.get("messages", [])
-                
-                threads.append(ThreadSummary(
-                    thread_id=doc["_id"],
-                    user_query=_extract_user_query(channel_values, messages),
-                    last_updated=doc.get("thread_ts"),
-                    message_count=len(messages) if isinstance(messages, list) else None
-                ))
-            except Exception as e:
-                logger.warning(f"Error processing thread {doc.get('_id', 'unknown')}: {e}")
-                threads.append(ThreadSummary(
-                    thread_id=doc["_id"],
-                    user_query=None,
-                    last_updated=doc.get("thread_ts"),
-                    message_count=None
-                ))
+        count = 0
+        
+        # List all checkpoints and group by thread_id
+        seen_threads = {}
+        async for checkpoint_tuple in checkpointer.alist(None, limit=None):
+            if count >= limit:
+                break
+            
+            thread_id = checkpoint_tuple.config.get("configurable", {}).get("thread_id")
+            if not thread_id:
+                continue
+            
+            # Keep only the latest checkpoint for each thread
+            if thread_id not in seen_threads:
+                try:
+                    checkpoint = checkpoint_tuple.checkpoint
+                    channel_values = checkpoint.get("channel_values", {})
+                    messages = channel_values.get("messages", [])
+                    thread_ts = checkpoint.get("id")
+                    
+                    threads.append(ThreadSummary(
+                        thread_id=thread_id,
+                        user_query=_extract_user_query(channel_values, messages),
+                        last_updated=thread_ts,
+                        message_count=len(messages) if isinstance(messages, list) else None
+                    ))
+                    seen_threads[thread_id] = True
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"Error processing thread {thread_id}: {e}")
+                    threads.append(ThreadSummary(
+                        thread_id=thread_id,
+                        user_query=None,
+                        last_updated=None,
+                        message_count=None
+                    ))
+                    seen_threads[thread_id] = True
+                    count += 1
         
         return ThreadListResponse(threads=threads, total=len(threads))
     
@@ -344,8 +347,12 @@ async def list_threads(limit: int = 50):
 @app.get("/threads/{thread_id}", summary="Get thread", response_model=MakersResponse)
 async def get_thread(thread_id: str):
     """Get details of a specific thread."""
+    # Security: Basic validation of thread_id format
+    if not thread_id or len(thread_id) > 255:
+        raise HTTPException(status_code=400, detail="Invalid thread ID format")
+    
     try:
-        checkpointer = MongoDBSaver()
+        checkpointer = await get_checkpointer()
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         checkpoint_tuple = await checkpointer.aget_tuple(config)
         
@@ -372,17 +379,54 @@ async def get_thread(thread_id: str):
 @app.delete("/threads/{thread_id}", summary="Delete thread", response_model=Dict[str, Any])
 async def delete_thread(thread_id: str):
     """Delete a conversation thread and all its checkpoints."""
+    # Security: Basic validation of thread_id format
+    if not thread_id or len(thread_id) > 255:
+        raise HTTPException(status_code=400, detail="Invalid thread ID format")
+    
     try:
-        checkpointer = MongoDBSaver()
-        result = await checkpointer.collection.delete_many({"thread_id": thread_id})
-        
-        if result.deleted_count == 0:
+        # First, verify that the thread exists
+        checkpointer = await get_checkpointer()
+        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+        checkpoint_tuple = await checkpointer.aget_tuple(config)
+        if not checkpoint_tuple:
             raise HTTPException(status_code=404, detail=f"Thread {thread_id} not found")
+        
+        # Get the SQLite connection and delete all checkpoints for this thread
+        # LangGraph stores checkpoints in 'checkpoints' and 'writes' tables
+        # Both tables use (thread_id, checkpoint_ns) as part of their key structure
+        # We need to delete all records for this thread_id, regardless of checkpoint_ns
+        connection = await get_sqlite_connection()
+        
+        # Delete from writes table first (child records)
+        # LangGraph schema: writes table has (thread_id, checkpoint_ns, checkpoint_id, task_id, idx) as key
+        writes_cursor = await connection.execute(
+            "DELETE FROM writes WHERE thread_id = ?",
+            (thread_id,)
+        )
+        writes_deleted = writes_cursor.rowcount
+        
+        # Delete from checkpoints table (parent records)
+        # LangGraph schema: checkpoints table has (thread_id, checkpoint_ns, checkpoint_id) as key
+        checkpoints_cursor = await connection.execute(
+            "DELETE FROM checkpoints WHERE thread_id = ?",
+            (thread_id,)
+        )
+        checkpoints_deleted = checkpoints_cursor.rowcount
+        
+        await connection.commit()
+        
+        total_deleted = checkpoints_deleted + writes_deleted
+        logger.info(
+            f"Deleted {checkpoints_deleted} checkpoint(s) and {writes_deleted} write(s) "
+            f"for thread {thread_id} (total: {total_deleted})"
+        )
         
         return {
             "status": "deleted",
             "thread_id": thread_id,
-            "deleted_count": result.deleted_count
+            "deleted_count": total_deleted,
+            "checkpoints_deleted": checkpoints_deleted,
+            "writes_deleted": writes_deleted
         }
     
     except HTTPException:
@@ -410,6 +454,16 @@ def _validate_ingestion_request(request_data: IngestionRequest) -> None:
         pdf_dir = Path(request_data.pdf_dir).resolve()
         if not pdf_dir.exists():
             raise HTTPException(status_code=400, detail=f"PDF directory does not exist: {pdf_dir}")
+        
+        # Security: Ensure path is within allowed base directory to prevent path traversal
+        base_dir = Path(settings.DATA_DIR).resolve()
+        try:
+            pdf_dir.relative_to(base_dir)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"PDF directory must be within {base_dir} for security reasons"
+            )
 
 
 def _create_ingestion_config(request_data: IngestionRequest) -> IngestionConfig:
@@ -425,9 +479,9 @@ def _create_ingestion_config(request_data: IngestionRequest) -> IngestionConfig:
         sort_by=request_data.sort_by,
         sort_order=request_data.sort_order,
         corpus_name=request_data.corpus_name,
-        collection_name=request_data.collection_name or MongoDBManager.DEFAULT_CHUNK_COLLECTION_NAME,
-        vector_index_name=request_data.vector_index_name or MongoDBManager.DEFAULT_VECTOR_INDEX_NAME,
-        text_index_name=request_data.text_index_name or MongoDBManager.DEFAULT_TEXT_INDEX_NAME
+        collection_name=request_data.collection_name or settings.CHROMA_COLLECTION_NAME,
+        vector_index_name="",  # Not used with ChromaDB (auto-indexed)
+        text_index_name=""  # Not used with ChromaDB
     )
 
 
@@ -440,9 +494,9 @@ async def _run_ingestion_pipeline(config: IngestionConfig, pdf_path: Path, metad
             executor, download_papers, config, pdf_path, metadata_path, False
         )
         chunks = await loop.run_in_executor(executor, process_documents, pdf_path, metadata_path)
-        embedded_chunks = await loop.run_in_executor(executor, generate_embeddings, chunks)
+        # Note: Embeddings will be generated automatically by LlamaIndex when storing in ChromaDB
     
-    return download_result, chunks, embedded_chunks
+    return download_result, chunks
 
 
 @app.post("/ingest", summary="Ingest documents", response_model=IngestionResponse)
@@ -456,22 +510,15 @@ async def ingest_documents(request_data: IngestionRequest = Body(...)):
         pdf_path, metadata_path = setup_corpus_directories(corpus_name)
         logger.info(f"Starting ingestion for corpus: {corpus_name}")
         
-        download_result, chunks, embedded_chunks = await _run_ingestion_pipeline(
+        download_result, chunks = await _run_ingestion_pipeline(
             config, pdf_path, metadata_path
         )
         
-        # Setup MongoDB with config overrides if provided
-        config_overrides = request_data.config
-        mongo_uri = (config_overrides.mongodb_uri if config_overrides and config_overrides.mongodb_uri 
-                     else settings.MONGODB_URI)
-        mongo_db = (config_overrides.mongodb_database if config_overrides and config_overrides.mongodb_database 
-                    else settings.MONGO_DATABASE_NAME)
-        mongo_mgr = MongoDBManager(mongo_uri=mongo_uri, db_name=mongo_db)
-        
+        # Setup ChromaDB (runs in executor to avoid blocking)
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor(max_workers=1) as executor:
             await loop.run_in_executor(
-                executor, _setup_mongodb_with_manager, mongo_mgr, config, embedded_chunks
+                executor, setup_chromadb, config, chunks
             )
         
         return IngestionResponse(
@@ -479,10 +526,10 @@ async def ingest_documents(request_data: IngestionRequest = Body(...)):
             corpus_name=corpus_name,
             downloaded_count=download_result.get("downloaded_count", 0),
             processed_count=len(chunks),
-            embedded_count=len(embedded_chunks),
-            stored_count=len(embedded_chunks),
+            embedded_count=len(chunks),  # Embeddings generated automatically by LlamaIndex
+            stored_count=len(chunks),  # All chunks are stored in ChromaDB
             failed_count=download_result.get("failed_count", 0),
-            message=f"Successfully ingested {len(embedded_chunks)} chunks into corpus '{corpus_name}'"
+            message=f"Successfully ingested {len(chunks)} chunks into corpus '{corpus_name}'"
         )
     
     except HTTPException:
@@ -492,26 +539,6 @@ async def ingest_documents(request_data: IngestionRequest = Body(...)):
         raise HTTPException(status_code=500, detail=f"Failed to ingest documents: {str(e)}")
 
 
-def _setup_mongodb_with_manager(mongo_mgr: MongoDBManager, config: IngestionConfig, chunks: list) -> None:
-    """Set up MongoDB with chunks and indexes using provided manager."""
-    if not chunks:
-        logger.info("No chunks to store in MongoDB")
-        return
-
-    logger.info("Setting up MongoDB...")
-    
-    try:
-        mongo_mgr.connect()
-        logger.info(f"Inserting {len(chunks)} chunks into {config.collection_name}")
-        insert_summary = mongo_mgr.insert_chunks_with_embeddings(chunks, collection_name=config.collection_name)
-        logger.info(f"Insertion summary: {insert_summary}")
-        _create_indexes(mongo_mgr, config)
-        logger.info("MongoDB setup complete")
-    except Exception as e:
-        logger.error(f"MongoDB setup failed: {e}", exc_info=True)
-        raise
-    finally:
-        mongo_mgr.close()
 
 # Development server instructions
 """
@@ -522,7 +549,7 @@ To run this API locally:
 Example API request:
 POST http://localhost:8000/invoke_makers
 {
-    "query": "What are the latest trends in reinforcement learning for robotics?",
+    "query": "What are the latest advancements in face analysis",
     "thread_id": "optional_existing_thread_id"
 }
 """

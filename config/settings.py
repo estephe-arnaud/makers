@@ -14,7 +14,6 @@ Configuration is loaded from:
 3. Default values (as fallback)
 """
 
-import os
 from typing import List, Optional
 from pathlib import Path
 
@@ -46,13 +45,12 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: Optional[str] = None
     WANDB_API_KEY: Optional[str] = None
 
-    # --- MongoDB Configuration ---
-    MONGODB_URI: str = "mongodb://localhost:27017/"
-    MONGO_DATABASE_NAME: str = "makers_db"
-    MONGODB_COLLECTION_NAME: str = "makers_collection"
-    MONGO_MAX_POOL_SIZE: int = 50
-    MONGO_TIMEOUT_MS: int = 5000  # 5 seconds
-    LANGGRAPH_CHECKPOINTS_COLLECTION: str = "langgraph_checkpoints"
+    # --- SQLite Configuration (for LangGraph checkpoints) ---
+    SQLITE_DB_PATH: Path = Path(__file__).resolve().parent.parent / "data" / "checkpoints.sqlite"
+
+    # --- ChromaDB Configuration (for vector storage) ---
+    CHROMA_DB_PATH: Path = Path(__file__).resolve().parent.parent / "data" / "chroma_db"
+    CHROMA_COLLECTION_NAME: str = "arxiv_chunks"
 
     # --- LLM Provider Configuration ---
     DEFAULT_LLM_MODEL_PROVIDER: str = "groq"  # Groq for unlimited/free tier usage
@@ -60,7 +58,7 @@ class Settings(BaseSettings):
     HUGGINGFACE_REPO_ID: Optional[str] = "mistralai/Mixtral-8x7B-Instruct-v0.1"
     OLLAMA_BASE_URL: Optional[str] = "http://localhost:11434"
     OLLAMA_GENERATIVE_MODEL_NAME: Optional[str] = "mistral"
-    GROQ_MODEL_NAME: Optional[str] = "llama-3.1-8b-instant"  # Smaller model for unlimited usage
+    GROQ_MODEL_NAME: Optional[str] = "llama-3.3-70b-versatile"  # Default Groq model
     GOOGLE_GEMINI_MODEL_NAME: Optional[str] = "gemini-pro"  # Default Gemini model
 
     # --- Embedding Configuration ---
@@ -85,7 +83,7 @@ class Settings(BaseSettings):
 
     # --- ArXiv Configuration ---
     DATA_DIR: Path = Path(__file__).resolve().parent.parent / "data"
-    ARXIV_DEFAULT_QUERY: str = "Reinforcement Learning for Robotics"
+    ARXIV_DEFAULT_QUERY: str = "What are the latest advancements in face analysis"
     ARXIV_MAX_RESULTS: int = 10
     ARXIV_SORT_BY: str = "SubmittedDate"
     ARXIV_SORT_ORDER: str = "Descending"
@@ -139,12 +137,12 @@ if __name__ == "__main__":
     print(f"Tavily API Key: {'✓' if settings.TAVILY_API_KEY else '✗'}")
     print(f"Weights & Biases API Key: {'✓' if settings.WANDB_API_KEY else '✗'}")
 
-    print("\n--- MongoDB Configuration ---")
-    print(f"MongoDB URI: {settings.MONGODB_URI}")
-    print(f"Database Name: {settings.MONGO_DATABASE_NAME}")
-    print(f"Collection Name: {settings.MONGODB_COLLECTION_NAME}")
-    print(f"Max Pool Size: {settings.MONGO_MAX_POOL_SIZE}")
-    print(f"Timeout (ms): {settings.MONGO_TIMEOUT_MS}")
+    print("\n--- ChromaDB Configuration (Vector Storage) ---")
+    print(f"ChromaDB Path: {settings.CHROMA_DB_PATH}")
+    print(f"Collection Name: {settings.CHROMA_COLLECTION_NAME}")
+    
+    print("\n--- SQLite Configuration (Checkpoints) ---")
+    print(f"SQLite DB Path: {settings.SQLITE_DB_PATH}")
 
     print("\n--- Data & Paths ---")
     print(f"Data Directory: {settings.DATA_DIR}")

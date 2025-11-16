@@ -58,17 +58,21 @@ poetry.lock
 logs/
 *.log.*
 
-# MongoDB data (local)
-data/mongodb/
-*.db
+# SQLite databases
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 *.sqlite3
+*.db-shm
+*.db-wal
 
 # Data directories (large files)
 data/raw/
 data/processed/
 data/pdfs/
 data/evaluation/datasets/
+data/chroma_db/
+data/checkpoint*
 
 # Model files
 *.pkl

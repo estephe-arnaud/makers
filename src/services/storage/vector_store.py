@@ -1,12 +1,14 @@
 # src/rag/retrieval_engine.py
 import logging
 from typing import List, Optional, Dict, Any
+from pathlib import Path
 
 from llama_index.core import VectorStoreIndex, StorageContext, QueryBundle
-from llama_index.core.vector_stores import VectorStoreQuery, MetadataFilters, ExactMatchFilter
+from llama_index.core.vector_stores import VectorStoreQuery
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.settings import Settings as LlamaSettings
-from llama_index.vector_stores.mongodb import MongoDBAtlasVectorSearch
+from llama_index.vector_stores.chroma import ChromaVectorStore
+import chromadb
 
 from llama_index.embeddings.openai import OpenAIEmbedding as LlamaOpenAIEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding as LlamaHuggingFaceEmbedding
@@ -29,39 +31,28 @@ class RetrievedNode:
 
 
 class RetrievalEngine:
-    """Engine for retrieving relevant documents using vector similarity search."""
+    """Engine for retrieving relevant documents using vector similarity search with ChromaDB."""
     
-    DEFAULT_CHUNK_COLLECTION_NAME = "arxiv_chunks"
-    DEFAULT_VECTOR_INDEX_NAME = "default_vector_index"
-    DEFAULT_METADATA_KEYS = [
-        "chunk_id", "arxiv_id", "original_document_title",
-        "embedding_model", "embedding_provider", "embedding_dimension"
-    ]
+    DEFAULT_COLLECTION_NAME = "arxiv_chunks"
 
     def __init__(
         self,
-        mongo_uri: str = settings.MONGODB_URI,
-        db_name: str = settings.MONGO_DATABASE_NAME,
-        collection_name: str = DEFAULT_CHUNK_COLLECTION_NAME,
-        vector_index_name: str = DEFAULT_VECTOR_INDEX_NAME,
-        embedding_field: str = "embedding",
-        text_key: str = "text_chunk",
-        metadata_keys: Optional[List[str]] = None
+        chroma_db_path: Optional[Path] = None,
+        collection_name: str = None,
     ):
-        self.mongo_uri = mongo_uri
-        self.db_name = db_name
-        self.collection_name = collection_name
-        self.vector_index_name = vector_index_name
-        self.embedding_field = embedding_field
-        self.text_key = text_key
-        self.metadata_keys = metadata_keys or self.DEFAULT_METADATA_KEYS
+        self.chroma_db_path = chroma_db_path or settings.CHROMA_DB_PATH
+        self.collection_name = collection_name or settings.CHROMA_COLLECTION_NAME
 
-        self._vector_store: Optional[MongoDBAtlasVectorSearch] = None
+        # Ensure ChromaDB directory exists
+        self.chroma_db_path.mkdir(parents=True, exist_ok=True)
+
+        self._vector_store: Optional[ChromaVectorStore] = None
         self._index: Optional[VectorStoreIndex] = None
         self._retriever: Optional[BaseRetriever] = None
+        self._chroma_collection = None  # Store ChromaDB collection for direct access
 
         self._setup_llamaindex_components()
-        logger.info("RetrievalEngine initialized with LlamaIndex components")
+        logger.info("RetrievalEngine initialized with ChromaDB and LlamaIndex components")
 
     def _configure_llama_settings(self) -> None:
         """Configure the global embedding model based on the selected provider."""
@@ -105,27 +96,33 @@ class RetrievalEngine:
             raise NotImplementedError(f"Unsupported embedding provider: {provider}")
 
     def _setup_llamaindex_components(self) -> None:
-        """Initialize LlamaIndex components for vector search."""
+        """Initialize LlamaIndex components for vector search with ChromaDB."""
         try:
             self._configure_llama_settings()
 
-            self._vector_store = MongoDBAtlasVectorSearch(
-                mongodb_client=None,
-                db_name=self.db_name,
-                collection_name=self.collection_name,
-                vector_index_name=self.vector_index_name,
-                uri=self.mongo_uri,
-                embedding_key=self.embedding_field,
-                text_key=self.text_key
+            # Initialize ChromaDB client
+            chroma_client = chromadb.PersistentClient(path=str(self.chroma_db_path))
+            
+            # Get or create collection
+            chroma_collection = chroma_client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"}  # Use cosine similarity
             )
-            logger.info(f"Configured MongoDB vector store for collection: {self.collection_name}")
+            
+            # Store collection for direct access (bypassing LlamaIndex filter issues)
+            self._chroma_collection = chroma_collection
+
+            # Create ChromaDB vector store
+            self._vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+            logger.info(f"Configured ChromaDB vector store at: {self.chroma_db_path}")
+            logger.info(f"Using collection: {self.collection_name}")
 
             if LlamaSettings.embed_model is None:
                 raise ValueError("Embedding model not configured")
 
             self._index = VectorStoreIndex.from_vector_store(self._vector_store)
             self._retriever = self._index.as_retriever(similarity_top_k=5)
-            logger.info("Initialized vector store index and retriever")
+            logger.info("Initialized vector store index and retriever with ChromaDB")
 
         except Exception as e:
             logger.error(f"Failed to initialize LlamaIndex components: {e}", exc_info=True)
@@ -138,7 +135,7 @@ class RetrievalEngine:
         self,
         query_text: str,
         top_k: int = 5,
-        metadata_filters: Optional[List[Dict[str, Any]]] = None
+        metadata_filters: Optional[List[Dict[str, Any]]] = None  # Deprecated: kept for compatibility but ignored
     ) -> List[RetrievedNode]:
         """Retrieve relevant documents using vector similarity search."""
         if not self._index or not self._retriever:
@@ -152,37 +149,61 @@ class RetrievalEngine:
                 logger.error("Retriever not available after re-initialization")
                 return []
 
-        current_retriever = self._index.as_retriever(similarity_top_k=top_k)
-        llama_filters = None
-
-        if metadata_filters:
-            filters_list = []
-            for f_dict in metadata_filters:
-                if "key" in f_dict and "value" in f_dict:
-                    filters_list.append(ExactMatchFilter(key=f_dict["key"], value=f_dict["value"]))
-                else:
-                    logger.warning(f"Skipped malformed metadata filter: {f_dict}")
-            if filters_list:
-                llama_filters = MetadataFilters(filters=filters_list)
-
         try:
-            if llama_filters:
-                filtered_retriever = self._index.as_retriever(
-                    similarity_top_k=top_k,
-                    filters=llama_filters
-                )
-                retrieved_nodes = filtered_retriever.retrieve(query_text)
+            # Use ChromaDB directly to avoid LlamaIndex filter issues
+            # Embed the query text first
+            if LlamaSettings.embed_model is None:
+                raise ValueError("Embedding model not configured")
+            
+            # Get query embedding - try get_query_embedding first, fallback to get_text_embedding
+            if hasattr(LlamaSettings.embed_model, 'get_query_embedding'):
+                query_embedding = LlamaSettings.embed_model.get_query_embedding(query_text)
+            elif hasattr(LlamaSettings.embed_model, 'get_text_embedding'):
+                query_embedding = LlamaSettings.embed_model.get_text_embedding(query_text)
             else:
-                retrieved_nodes = current_retriever.retrieve(query_text)
-
-            results = [
-                RetrievedNode(
-                    text=node.get_content(),
-                    score=node.get_score(),
-                    metadata=node.metadata
-                )
-                for node in retrieved_nodes
-            ]
+                # Fallback: use get_text_embedding_batch
+                embeddings = LlamaSettings.embed_model.get_text_embedding_batch([query_text])
+                query_embedding = embeddings[0] if embeddings else None
+                if query_embedding is None:
+                    raise ValueError("Failed to generate query embedding")
+            
+            # Query ChromaDB directly (bypassing LlamaIndex to avoid empty filter issues)
+            # ChromaDB query with query_embeddings (not query_texts) doesn't require filters
+            if self._chroma_collection is None:
+                # Fallback: reinitialize if needed
+                self._setup_llamaindex_components()
+            
+            chroma_results = self._chroma_collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k,
+                # Don't pass where/filters parameter at all - ChromaDB will handle it correctly
+            )
+            
+            # Convert ChromaDB results to RetrievedNode format
+            results = []
+            if chroma_results and chroma_results.get('ids') and len(chroma_results['ids']) > 0:
+                ids = chroma_results['ids'][0]
+                documents = chroma_results.get('documents', [[]])[0] if chroma_results.get('documents') else []
+                metadatas = chroma_results.get('metadatas', [[]])[0] if chroma_results.get('metadatas') else []
+                distances = chroma_results.get('distances', [[]])[0] if chroma_results.get('distances') else []
+                
+                for i, doc_id in enumerate(ids):
+                    # Convert distance to similarity score (cosine distance -> similarity)
+                    # ChromaDB returns distances (lower is better), convert to similarity (higher is better)
+                    distance = distances[i] if i < len(distances) else None
+                    score = 1.0 - distance if distance is not None else None
+                    
+                    # Get document text and metadata
+                    doc_text = documents[i] if i < len(documents) else ""
+                    metadata = metadatas[i] if i < len(metadatas) else {}
+                    
+                    results.append(
+                        RetrievedNode(
+                            text=doc_text,
+                            score=score,
+                            metadata=metadata
+                        )
+                    )
 
             logger.info(f"Retrieved {len(results)} nodes for query: '{query_text[:50]}...'")
             return results
@@ -211,15 +232,10 @@ if __name__ == "__main__":
         if can_run_test:
             logger.info(f"Ensure Ollama is running at {settings.OLLAMA_BASE_URL}")
 
-    if not settings.MONGODB_URI or ("<user>" in settings.MONGODB_URI and "localhost" not in settings.MONGODB_URI):
-        logger.warning("MongoDB URI may not be correctly configured")
-        if "localhost" not in settings.MONGODB_URI:
-            can_run_test = False
-
     if can_run_test:
         try:
             engine = RetrievalEngine()
-            query = "reinforcement learning for robotic arm manipulation"
+            query = "What are the latest advancements in face analysis"
             logger.info(f"\nTesting vector search for query: '{query}'")
 
             results = engine.retrieve_simple_vector_search(query, top_k=3)
@@ -232,7 +248,7 @@ if __name__ == "__main__":
                     logger.info(f"  Title: {node.metadata.get('original_document_title', 'N/A')}")
                     logger.info(f"  Text: {node.text[:150]}...")
             else:
-                logger.warning("No results found. Check MongoDB data and configuration")
+                logger.warning("No results found. Check ChromaDB data and configuration")
 
         except Exception as e:
             logger.error(f"Test failed: {e}", exc_info=True)

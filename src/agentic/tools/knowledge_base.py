@@ -16,11 +16,14 @@ logger = logging.getLogger(__name__)
 def knowledge_base_retrieval_tool(
     query_text: str,
     top_k: int = 5,
-    metadata_filters: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Use this tool to retrieve relevant text chunks from our internal, curated
     knowledge base of already processed documents.
+
+    This tool performs semantic similarity search to find the most relevant
+    text chunks based on the query. It returns the top_k most similar chunks
+    ranked by relevance score.
 
     This is useful for finding specific, targeted information or facts within
     documents that are already part of our system. It is faster than a full
@@ -28,9 +31,7 @@ def knowledge_base_retrieval_tool(
 
     Args:
         query_text: The specific question or topic to search for in the knowledge base.
-        top_k: The number of most relevant text chunks to return.
-        metadata_filters: Optional list of filters to apply to the search,
-                          e.g., `[{"key": "arxiv_id", "value": "2301.12345"}]`.
+        top_k: The number of most relevant text chunks to return (default: 5).
 
     Returns:
         A list of retrieved document chunks, each with its content, source, and
@@ -47,26 +48,11 @@ def knowledge_base_retrieval_tool(
         retrieval_engine = RetrievalEngine()
         logger.info("RetrievalEngine initialized successfully.")
 
-        # Process metadata filters
-        llama_filters = []
-        if metadata_filters:
-            from llama_index.core.vector_stores import ExactMatchFilter
-
-            for filter_dict in metadata_filters:
-                if "key" in filter_dict and "value" in filter_dict:
-                    llama_filters.append(
-                        ExactMatchFilter(
-                            key=filter_dict["key"], value=filter_dict["value"]
-                        )
-                    )
-                else:
-                    logger.warning(f"Invalid metadata filter format: {filter_dict}")
-
-        # Execute retrieval
+        # Execute simple semantic similarity search (no filters needed)
         retrieved_nodes = retrieval_engine.retrieve_simple_vector_search(
             query_text=query_text,
             top_k=top_k,
-            metadata_filters=llama_filters if llama_filters else None,
+            metadata_filters=None,  # No filters - just semantic similarity
         )
 
         # Format results

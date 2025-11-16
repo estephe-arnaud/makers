@@ -125,19 +125,21 @@ def generate_embeddings_for_chunks(
     if not model_name:
         logger.error(f"Unknown embedding provider '{provider}' in generate_embeddings_for_chunks.")
         return []
-    
+
     texts_to_embed: List[str] = [chunk["text_chunk"] for chunk in processed_chunks]
     final_chunks_for_db: List[Dict[str, Any]] = []
     total_batches = (len(texts_to_embed) + batch_size - 1) // batch_size
+
+    if total_batches > 1:
+        logger.info(f"Generating embeddings in {total_batches} batch(es) using {provider}")
 
     for batch_idx in range(0, len(texts_to_embed), batch_size):
         batch_texts = texts_to_embed[batch_idx:batch_idx + batch_size]
         batch_original_chunks = processed_chunks[batch_idx:batch_idx + batch_size]
         batch_num = batch_idx // batch_size + 1
         
-        logger.info(
-            f"Embedding batch {batch_num}/{total_batches} "
-            f"(size: {len(batch_texts)}) using {provider} provider."
+        logger.debug(
+            f"Batch {batch_num}/{total_batches} (size: {len(batch_texts)})"
         )
         
         try:

@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 
 from langchain_core.messages import HumanMessage
 
-from src.agentic.workflow.graph import app
+from src.agentic.workflow.graph import get_app
 from src.agentic.agents.utils import get_agent_output
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,8 @@ async def run_workflow(query: str, thread_id: Optional[str] = None) -> Dict[str,
         }
         config = {"configurable": {"thread_id": thread_id}}
 
+        # Get the graph with async checkpointer to avoid concurrent database connections
+        app = await get_app()
         final_state = await app.ainvoke(initial_state, config=config)
 
         # Extract final output from last AIMessage

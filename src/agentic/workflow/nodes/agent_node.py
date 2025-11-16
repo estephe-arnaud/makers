@@ -7,15 +7,16 @@ The agent analyzes the context and decides on the next action (tool calls or fin
 import logging
 from typing import Dict, Any
 
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from src.core.state import GraphState
 from src.core.constants import MAX_ITERATIONS
 from src.agentic.agents.agent import get_agent
+from src.agentic.agents.prompts import AGENT_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
-# Initialize agent once at module level
+# Initialize agent (LLM with tools bound) once at module level
 agent = get_agent()
 
 
@@ -53,6 +54,11 @@ async def agent_node(state: GraphState) -> Dict[str, Any]:
         # Build context for the agent
         agent_messages = []
         
+        # Add system prompt
+        agent_messages.append(
+            SystemMessage(content=AGENT_SYSTEM_PROMPT)
+        )
+        
         # Add conversation summary if it exists (long-term memory)
         if state.get("conversation_summary"):
             agent_messages.append(
@@ -65,13 +71,13 @@ async def agent_node(state: GraphState) -> Dict[str, Any]:
         # Add recent messages (immediate context)
         agent_messages.extend(state["messages"])
         
-        # Invoke the agent directly (without executor) to get tool calls
-        # The agent will return an AIMessage with tool_calls or a final answer
-        # Note: agent_scratchpad is built automatically by LangChain from messages
-        response = await agent.ainvoke({"messages": agent_messages})
+        # Invoke the LLM with tools bound - much simpler than create_openai_tools_agent!
+        # The LLM will automatically generate tool_calls in AIMessage when appropriate
+        # No need for intermediate_steps or complex agent setup
+        response = await agent.ainvoke(agent_messages)
         
         # Extract the agent's response message
-        # create_openai_tools_agent returns an AIMessage directly
+        # LLM with bind_tools returns an AIMessage directly (with tool_calls if needed)
         if isinstance(response, AIMessage):
             agent_message = response
         elif isinstance(response, dict):

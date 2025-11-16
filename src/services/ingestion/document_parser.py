@@ -82,7 +82,7 @@ def parse_single_pdf(pdf_filepath: Path) -> Optional[str]:
         logger.error(f"PDF file not found: {pdf_filepath}")
         return None
 
-    logger.info(f"Parsing PDF: {pdf_filepath.name}")
+    logger.debug(f"Parsing PDF: {pdf_filepath.name}")
     
     try:
         doc = fitz.open(pdf_filepath)
@@ -175,7 +175,7 @@ def parse_document_collection(
         }
         
         parsed_documents.append(parsed_doc)
-        logger.info(f"Successfully processed and added document: {parsed_doc['arxiv_id']}")
+        logger.debug(f"Processed document: {parsed_doc['arxiv_id']}")
 
     logger.info(f"Finished parsing collection. Successfully processed {len(parsed_documents)} documents")
     return parsed_documents
