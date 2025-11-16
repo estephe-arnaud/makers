@@ -196,7 +196,8 @@ src/
 
 - **Python 3.11+**
 - **Poetry**: Dependency management
-- **MongoDB**: Atlas (recommended) or local instance
+- **Docker**: For MongoDB (recommended)
+- **MongoDB**: Docker (recommended) or Atlas (cloud) or local instance
 - **Groq API Key** (default): Get your free API key from [console.groq.com](https://console.groq.com)
 
 ### Installation
@@ -252,10 +253,62 @@ src/
    poetry install
    ```
 
-4. **Set up MongoDB Atlas** (recommended) or use local MongoDB:
-   
-   **Option A: MongoDB Atlas (Cloud - Recommended)**
-   
+4. **Set up MongoDB** (recommended: Docker with volume):
+
+   **Option A: Docker with Volume (Recommended for Local Development)**
+
+   The easiest way to run MongoDB locally is using Docker with a persistent volume:
+
+   ```bash
+   # Create a volume for data persistence (survives container removal)
+   docker volume create mongodb_data
+
+   # Run MongoDB with volume mount
+   docker run -d \
+     --name mongodb \
+     -p 27017:27017 \
+     -v mongodb_data:/data/db \
+     mongo:latest
+
+   # Stop MongoDB (data is preserved in volume)
+   docker stop mongodb
+
+   # Start MongoDB again (data is still there)
+   docker start mongodb
+
+   # Remove container (data is preserved in volume)
+   docker rm mongodb
+
+   # Recreate container with same volume (all your data is back!)
+   docker run -d \
+     --name mongodb \
+     -p 27017:27017 \
+     -v mongodb_data:/data/db \
+     mongo:latest
+
+   # View MongoDB logs
+   docker logs mongodb
+
+   # ⚠️ WARNING: To completely remove MongoDB and all data:
+   docker stop mongodb
+   docker rm mongodb
+   docker volume rm mongodb_data  # This deletes all data!
+   ```
+
+   The default connection string is already configured in `.env.example`:
+   ```env
+   MONGODB_URI=mongodb://localhost:27017/
+   MONGO_DATABASE_NAME=makers_db
+   ```
+
+   **Note**: This setup includes:
+   - MongoDB latest version
+   - Persistent data volumes (data survives container restarts and removal)
+   - No authentication by default (for local development)
+   - Easy to start/stop/restart without losing data
+
+   **Option B: MongoDB Atlas (Cloud - For Production)**
+
    1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register)
    2. Create a new cluster (free tier: M0)
    3. Create a database user:
@@ -276,71 +329,23 @@ src/
       MONGO_DATABASE_NAME=makers_db
       ```
       Replace `<username>` and `<password>` with your database user credentials.
-   
-   **Option B: Local MongoDB**
-   
-   If you prefer to run MongoDB locally:
-   
-   **Using Docker:**
-   ```bash
-   # Simple way (data persists as long as container exists)
-   docker run -d \
-     --name mongodb \
-     -p 27017:27017 \
-     mongo:latest
-   
-   # Stop container (data is preserved in container)
-   docker stop mongodb
-   
-   # Start container again (data is still there)
-   docker start mongodb
-   
-   # ⚠️ WARNING: Removing container deletes all data!
-   docker rm mongodb  # Data is lost!
-   ```
-   
-   **Using Docker with volume (recommended for production):**
-   ```bash
-   # Create a volume for data persistence (survives container removal)
-   docker volume create mongodb_data
-   
-   # Run MongoDB with volume mount
-   docker run -d \
-     --name mongodb \
-     -p 27017:27017 \
-     -v mongodb_data:/data/db \
-     mongo:latest
-   
-   # Now you can safely remove container without losing data
-   docker stop mongodb
-   docker rm mongodb
-   # Data is preserved in volume 'mongodb_data'
-   
-   # Recreate container with same volume
-   docker run -d \
-     --name mongodb \
-     -p 27017:27017 \
-     -v mongodb_data:/data/db \
-     mongo:latest
-   # All your data is back!
-   ```
-   
+
+   **Option C: Local MongoDB Installation**
+
+   If you prefer to install MongoDB directly (not recommended):
+
    **Using Homebrew (macOS):**
    ```bash
    brew tap mongodb/brew
    brew install mongodb-community
    brew services start mongodb-community
    ```
-   
+
    Then use in your `.env`:
    ```env
    MONGODB_URI=mongodb://localhost:27017/
    MONGO_DATABASE_NAME=makers_db
    ```
-   
-   **Important:** 
-   - **Without volume**: Data persists when you `stop`/`start` the container, but is **lost** if you `rm` (remove) the container.
-   - **With volume**: Data persists even when you remove the container. Use volumes for production or when you need to recreate containers.
 
 5. **(Optional) Connect to Weights & Biases**:
    ```bash

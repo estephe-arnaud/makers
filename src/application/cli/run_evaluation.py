@@ -305,9 +305,9 @@ def main():
     if not args.wandb_disabled and not settings.WANDB_API_KEY and not os.environ.get("WANDB_API_KEY"):
         logger.warning("WANDB_API_KEY not found. W&B logging might fail if not logged in via CLI.")
     
-    # Vérification pour le LLM juge - il utilisera le provider configuré dans settings.py
-    # et le modèle spécifié par --judge_llm_model, ou le modèle par défaut du provider.
-    # La clé API correspondante au provider doit être disponible.
+    # Check for judge LLM - it will use the provider configured in settings.py
+    # and the model specified by --judge_llm_model, or the provider's default model.
+    # The corresponding API key for the provider must be available.
     llm_judge_provider = settings.DEFAULT_LLM_MODEL_PROVIDER.lower()
     if (args.eval_type == "synthesis" or args.eval_type == "all"):
         if llm_judge_provider == "openai" and not settings.OPENAI_API_KEY:

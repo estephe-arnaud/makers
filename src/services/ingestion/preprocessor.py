@@ -18,17 +18,10 @@ from typing import List, Dict, TypedDict, Any, Optional
 import tiktoken
 
 from config.settings import settings
-# Assumant que ParsedDocument est défini dans document_parser.py ou de manière similaire
 from src.services.ingestion.document_parser import ParsedDocument 
 
 logger = logging.getLogger(__name__)
 
-# class ParsedDocument(TypedDict): # Au cas où l'import ne fonctionnerait pas
-#     arxiv_id: str
-#     text_content: str
-#     metadata: Dict
-#     pdf_path: str
-#     metadata_path: Optional[str]
 
 class ProcessedChunk(TypedDict):
     """

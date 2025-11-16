@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any, TypedDict, Optional
 
-# Supposons que RetrievalEngine est correctement initialisé et fonctionnel
+# Assuming RetrievalEngine is properly initialized and functional
 from src.services.storage.vector_store import RetrievalEngine, RetrievedNode
 from config.settings import settings
 

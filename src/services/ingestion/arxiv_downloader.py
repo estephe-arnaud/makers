@@ -25,9 +25,9 @@ from config.settings import settings
 # Configure logger for this module
 logger = logging.getLogger(__name__)
 
-# Les constantes globales PDF_OUTPUT_DIR et METADATA_OUTPUT_DIR sont supprimées ici.
-# Les chemins complets seront maintenant déterminés par l'appelant (run_ingestion.py)
-# ou par les fonctions si elles sont appelées directement sans surcharge (moins idéal pour la flexibilité).
+# Global constants PDF_OUTPUT_DIR and METADATA_OUTPUT_DIR are removed here.
+# Full paths will now be determined by the caller (run_ingestion.py)
+# or by the functions if called directly without override (less ideal for flexibility).
 
 def search_arxiv_papers(
     query: str = settings.ARXIV_DEFAULT_QUERY,

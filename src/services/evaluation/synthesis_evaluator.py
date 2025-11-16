@@ -34,7 +34,7 @@ class SynthesisEvaluationResult(TypedDict):
     faithfulness: Optional[EvaluationAspectScore]
     coherence: Optional[EvaluationAspectScore]  # Future feature
 
-# --- Prompts pour LLM-as-a-Judge (inchangés) ---
+# --- Prompts for LLM-as-a-Judge (unchanged) ---
 RELEVANCE_EVAL_PROMPT_TEMPLATE = """
 You are an expert evaluator tasked with assessing the relevance of a generated synthesis to an original user query.
 Relevance measures how well the synthesis directly and appropriately addresses the query.
@@ -100,7 +100,7 @@ class SynthesisEvaluator:
         self,
         judge_llm_provider: Optional[str] = None,
         judge_llm_model_name: Optional[str] = None,
-        # Utilise DEFAULT_LLM_TEMPERATURE importé depuis llm_factory
+        # Uses DEFAULT_LLM_TEMPERATURE imported from llm factory
         judge_llm_temperature: float = DEFAULT_LLM_TEMPERATURE
     ):
         """
