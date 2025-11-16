@@ -1,8 +1,8 @@
 """
 Tool Registry
 
-Registry centralisé pour les tools, permettant un découplage complet
-entre les tools et le workflow.
+Centralized registry for tools, enabling complete decoupling
+between tools and the workflow.
 """
 
 import logging
@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 class ToolRegistry:
     """
-    Registry centralisé pour gérer tous les tools disponibles.
+    Centralized registry for managing all available tools.
     
-    Permet d'enregistrer et de récupérer des tools par leur nom,
-    découplant ainsi le workflow des tools individuels.
+    Allows registering and retrieving tools by name,
+    decoupling the workflow from individual tools.
     """
     
     _tools: Dict[str, BaseTool] = {}
@@ -25,11 +25,11 @@ class ToolRegistry:
     @classmethod
     def register(cls, name: str, tool: BaseTool) -> None:
         """
-        Enregistre un tool dans le registry.
+        Register a tool in the registry.
         
         Args:
-            name: Le nom du tool (doit correspondre au nom utilisé par l'agent)
-            tool: L'instance du tool à enregistrer
+            name: The tool name (must match the name used by the agent)
+            tool: The tool instance to register
         """
         if name in cls._tools:
             logger.warning(f"Tool '{name}' is already registered. Overwriting.")
@@ -39,13 +39,13 @@ class ToolRegistry:
     @classmethod
     def get(cls, name: str) -> Optional[BaseTool]:
         """
-        Récupère un tool par son nom.
+        Retrieve a tool by name.
         
         Args:
-            name: Le nom du tool
+            name: The tool name
             
         Returns:
-            L'instance du tool ou None si non trouvé
+            The tool instance or None if not found
         """
         tool = cls._tools.get(name)
         if tool is None:
@@ -55,40 +55,40 @@ class ToolRegistry:
     @classmethod
     def get_all(cls) -> List[BaseTool]:
         """
-        Récupère tous les tools enregistrés.
+        Retrieve all registered tools.
         
         Returns:
-            Liste de tous les tools
+            List of all tools
         """
         return list(cls._tools.values())
     
     @classmethod
     def get_all_names(cls) -> List[str]:
         """
-        Récupère tous les noms de tools enregistrés.
+        Retrieve all registered tool names.
         
         Returns:
-            Liste des noms de tools
+            List of tool names
         """
         return list(cls._tools.keys())
     
     @classmethod
     def is_registered(cls, name: str) -> bool:
         """
-        Vérifie si un tool est enregistré.
+        Check if a tool is registered.
         
         Args:
-            name: Le nom du tool
+            name: The tool name
             
         Returns:
-            True si le tool est enregistré, False sinon
+            True if the tool is registered, False otherwise
         """
         return name in cls._tools
     
     @classmethod
     def clear(cls) -> None:
         """
-        Efface tous les tools enregistrés (utile pour les tests).
+        Clear all registered tools (useful for tests).
         """
         cls._tools.clear()
         logger.debug("Tool registry cleared")

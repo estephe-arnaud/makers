@@ -1,7 +1,7 @@
 """
 Workflow Module
 
-Workflow LangGraph pour l'orchestration agentique.
+LangGraph workflow for agentic orchestration.
 """
 
 from src.agentic.workflow.runner import run_workflow

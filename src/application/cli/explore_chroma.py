@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script simple pour explorer ChromaDB - similaire à mongosh mais pour ChromaDB
+Simple script to explore ChromaDB - similar to mongosh but for ChromaDB
 Usage: python -m src.application.cli.explore_chroma <path_to_chromadb> [--collection COLLECTION_NAME]
 """
 import argparse
@@ -10,18 +10,18 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Explorer une base de données ChromaDB"
+        description="Explore a ChromaDB database"
     )
     parser.add_argument(
         "chroma_path",
         type=str,
-        help="Chemin vers le dossier ChromaDB (ex: data/chroma_db)"
+        help="Path to ChromaDB directory (e.g., data/chroma_db)"
     )
     parser.add_argument(
         "-c", "--collection",
         type=str,
         default=None,
-        help="Nom de la collection à explorer (par défaut: première collection trouvée)"
+        help="Collection name to explore (default: first collection found)"
     )
     
     args = parser.parse_args()
@@ -29,51 +29,51 @@ def main():
     chroma_path = Path(args.chroma_path).resolve()
     
     if not chroma_path.exists():
-        print(f"❌ Erreur: Le chemin '{chroma_path}' n'existe pas")
+        print(f"❌ Error: Path '{chroma_path}' does not exist")
         return
     
-    # Connexion à ChromaDB
+    # Connect to ChromaDB
     client = chromadb.PersistentClient(path=str(chroma_path))
     
     print("=" * 80)
-    print("📦 BASE DE DONNÉES ChromaDB")
+    print("📦 ChromaDB DATABASE")
     print("=" * 80)
-    print(f"Chemin: {chroma_path}\n")
+    print(f"Path: {chroma_path}\n")
     
-    # Lister toutes les collections
-    print("📚 Collections disponibles:")
+    # List all collections
+    print("📚 Available collections:")
     collections = client.list_collections()
     if not collections:
-        print("  Aucune collection trouvée")
+        print("  No collections found")
         return
     
     for coll in collections:
         print(f"  - {coll.name} ({coll.count()} documents)")
     
-    # Sélectionner la collection
+    # Select collection
     collection_name = args.collection
     if collection_name is None:
         if collections:
             collection_name = collections[0].name
-            print(f"\n⚠️  Aucune collection spécifiée, utilisation de: {collection_name}")
+            print(f"\n⚠️  No collection specified, using: {collection_name}")
         else:
-            print("\n❌ Aucune collection disponible")
+            print("\n❌ No collections available")
             return
     else:
-        # Vérifier que la collection existe
+        # Verify that the collection exists
         collection_names = [c.name for c in collections]
         if collection_name not in collection_names:
-            print(f"\n❌ Erreur: La collection '{collection_name}' n'existe pas")
-            print(f"Collections disponibles: {', '.join(collection_names)}")
+            print(f"\n❌ Error: Collection '{collection_name}' does not exist")
+            print(f"Available collections: {', '.join(collection_names)}")
             return
     
-    print(f"\n🔍 Collection active: {collection_name}")
+    print(f"\n🔍 Active collection: {collection_name}")
     collection = client.get_collection(name=collection_name)
-    print(f"📊 Nombre de documents: {collection.count()}\n")
+    print(f"📊 Document count: {collection.count()}\n")
     
-    # Afficher quelques documents
+    # Display some documents
     print("=" * 80)
-    print("📄 Premiers documents:")
+    print("📄 First documents:")
     print("=" * 80)
     
     results = collection.get(limit=5)
@@ -87,13 +87,13 @@ def main():
         print(f"ID: {doc_id}")
         print(f"Arxiv ID: {metadata.get('arxiv_id', 'N/A')}")
         print(f"Chunk ID: {metadata.get('chunk_id', 'N/A')}")
-        print(f"Texte (premiers 200 caractères):")
+        print(f"Text (first 200 characters):")
         print(f"  {doc_text[:200]}...")
-        print(f"Métadonnées complètes: {metadata}")
+        print(f"Full metadata: {metadata}")
     
-    # Lister les arxiv_id uniques
+    # List unique arxiv_ids
     print("\n" + "=" * 80)
-    print("📚 Arxiv IDs uniques:")
+    print("📚 Unique Arxiv IDs:")
     print("=" * 80)
     
     all_results = collection.get()
@@ -107,24 +107,24 @@ def main():
                     if m.get('arxiv_id') == arxiv_id)
         print(f"  {arxiv_id}: {count} chunks")
     
-    # Fonction interactive pour chercher
+    # Interactive function to search
     print("\n" + "=" * 80)
-    print("💡 Pour chercher un document spécifique:")
+    print("💡 To search for a specific document:")
     print("=" * 80)
     print("""
-# Exemple: chercher par arxiv_id
+# Example: search by arxiv_id
 results = collection.get(
     where={"arxiv_id": "2410.23831"},
     limit=5
 )
 
-# Exemple: chercher par chunk_id
+# Example: search by chunk_id
 results = collection.get(
     where={"chunk_id": "2410.23831_chunk_001"},
     limit=1
 )
 
-# Exemple: recherche vectorielle (similarité)
+# Example: vector search (similarity)
 results = collection.query(
     query_texts=["What are the latest advancements in face analysis"],
     n_results=3

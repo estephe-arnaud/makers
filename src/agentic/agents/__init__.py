@@ -1,7 +1,7 @@
 """
 Agents Module
 
-Agents et prompts pour le système agentique.
+Agents and prompts for the agentic system.
 """
 
 from src.agentic.agents.agent import get_agent, get_summary_llm

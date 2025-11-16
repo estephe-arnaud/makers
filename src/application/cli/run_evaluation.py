@@ -304,7 +304,7 @@ def main():
             logger.error("OpenAI API key not set. Synthesis evaluation (LLM-as-judge with OpenAI) will fail if OpenAI is the selected provider.")
         elif llm_judge_provider == "huggingface_api" and not settings.HUGGINGFACE_API_KEY:
             logger.error("HuggingFace API key not set. Synthesis evaluation (LLM-as-judge with HuggingFace API) will fail if HuggingFace API is the selected provider.")
-        # Pour Ollama, on suppose qu'il est accessible via OLLAMA_BASE_URL s'il est le provider.
+        # For Ollama, we assume it is accessible via OLLAMA_BASE_URL if it is the provider.
         
     try:
         asyncio.run(async_main(args))

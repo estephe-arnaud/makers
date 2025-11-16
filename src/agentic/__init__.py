@@ -1,6 +1,6 @@
 """
 Agentic System
 
-Système agentique complet : agents, tools, workflow.
+Complete agentic system: agents, tools, workflow.
 """
 

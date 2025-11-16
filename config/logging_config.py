@@ -16,7 +16,7 @@ import logging
 import sys
 from typing import Optional
 
-from config.settings import settings # Importer les settings pour utiliser DEBUG et PYTHON_ENV
+from config.settings import settings  # Import settings to use DEBUG and PYTHON_ENV
 
 class ColorFormatter(logging.Formatter):
     """
@@ -71,7 +71,7 @@ class ColorFormatter(logging.Formatter):
 
 def setup_logging(
     level: Optional[str] = None,
-    enable_color: bool = True # Permet de désactiver la couleur si nécessaire via l'appel
+    enable_color: bool = True  # Allows disabling color if needed via the call
 ) -> None:
     """
     Configure the root logger for the application.
@@ -131,7 +131,3 @@ def setup_logging(
         f"Logging configured with level: {effective_level_str}, "
         f"Color enabled: {use_colored_logs}"
     )
-
-    # Si vous voulez explicitement désactiver la couleur pour certains loggers de bibliothèques
-    # qui pourraient avoir leur propre formatage couleur (bien que ce soit rare pour le logging standard)
-    # logging.getLogger("some_verbose_library").propagate = False # ou ajouter un handler spécifique
