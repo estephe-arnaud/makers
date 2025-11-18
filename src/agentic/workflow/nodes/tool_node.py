@@ -10,7 +10,7 @@ from typing import Dict, Any
 
 from langchain_core.messages import ToolMessage
 
-from src.core.state import GraphState
+from src.agentic.workflow.state import GraphState
 from src.agentic.agents.utils import get_tool_calls
 from src.agentic.tools.registry import ToolRegistry
 

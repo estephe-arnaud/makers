@@ -9,8 +9,8 @@ from typing import Dict, Any
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from src.core.state import GraphState
-from src.core.constants import MAX_ITERATIONS
+from src.agentic.workflow.state import GraphState
+from src.agentic.workflow.constants import MAX_ITERATIONS
 from src.agentic.agents.agent import get_agent
 from src.agentic.agents.prompts import AGENT_SYSTEM_PROMPT
 

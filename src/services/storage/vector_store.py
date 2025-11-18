@@ -1,10 +1,15 @@
-# src/rag/retrieval_engine.py
+"""
+Vector Store Module
+
+Provides the RetrievalEngine for vector similarity search with ChromaDB.
+Handles document insertion and retrieval using LlamaIndex and ChromaDB.
+"""
+
 import logging
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
-from llama_index.core import VectorStoreIndex, StorageContext, QueryBundle
-from llama_index.core.vector_stores import VectorStoreQuery
+from llama_index.core import VectorStoreIndex, Document
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.settings import Settings as LlamaSettings
 from llama_index.vector_stores.chroma import ChromaVectorStore
@@ -17,6 +22,10 @@ from llama_index.embeddings.ollama import OllamaEmbedding as LlamaOllamaEmbeddin
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Disable ChromaDB telemetry logger to suppress PostHog errors
+logging.getLogger("chromadb.telemetry.product.posthog").setLevel(logging.CRITICAL)
+logging.getLogger("chromadb.telemetry.product.posthog").disabled = True
 
 class RetrievedNode:
     """Represents a retrieved document node with its metadata and relevance score."""
@@ -54,8 +63,13 @@ class RetrievalEngine:
         self._setup_llamaindex_components()
         logger.info("RetrievalEngine initialized with ChromaDB and LlamaIndex components")
 
-    def _configure_llama_settings(self) -> None:
-        """Configure the global embedding model based on the selected provider."""
+    @staticmethod
+    def configure_embedding_model() -> None:
+        """Configure the global embedding model based on the selected provider.
+        
+        This is a static method that can be called independently to configure
+        LlamaIndex embeddings without creating a RetrievalEngine instance.
+        """
         provider = settings.DEFAULT_EMBEDDING_PROVIDER.lower()
         logger.info(f"Configuring LlamaIndex embed_model for provider: {provider}")
 
@@ -98,7 +112,7 @@ class RetrievalEngine:
     def _setup_llamaindex_components(self) -> None:
         """Initialize LlamaIndex components for vector search with ChromaDB."""
         try:
-            self._configure_llama_settings()
+            self.configure_embedding_model()
 
             # Initialize ChromaDB client
             chroma_client = chromadb.PersistentClient(path=str(self.chroma_db_path))
@@ -212,47 +226,50 @@ class RetrievalEngine:
             logger.error(f"Error during retrieval: {e}", exc_info=True)
             return []
 
+    @staticmethod
+    def get_embedding_model_name() -> str:
+        """Get the embedding model name based on the configured provider."""
+        provider = settings.DEFAULT_EMBEDDING_PROVIDER.lower()
+        if provider == "openai":
+            return settings.OPENAI_EMBEDDING_MODEL_NAME
+        elif provider == "huggingface":
+            return settings.HUGGINGFACE_EMBEDDING_MODEL_NAME
+        elif provider == "ollama":
+            return settings.OLLAMA_EMBEDDING_MODEL_NAME
+        else:
+            logger.warning(f"Unknown embedding provider: {provider}, using 'unknown' as model name")
+            return "unknown"
 
-if __name__ == "__main__":
-    from config.logging_config import setup_logging
-    setup_logging(level="INFO")
-
-    logger.info("Starting RetrievalEngine test")
-
-    provider = settings.DEFAULT_EMBEDDING_PROVIDER.lower()
-    logger.info(f"Testing with embedding provider: {provider}")
-
-    can_run_test = False
-    if provider == "openai":
-        can_run_test = bool(settings.OPENAI_API_KEY)
-    elif provider == "huggingface":
-        can_run_test = True
-    elif provider == "ollama":
-        can_run_test = bool(settings.OLLAMA_BASE_URL and settings.OLLAMA_EMBEDDING_MODEL_NAME)
-        if can_run_test:
-            logger.info(f"Ensure Ollama is running at {settings.OLLAMA_BASE_URL}")
-
-    if can_run_test:
-        try:
-            engine = RetrievalEngine()
-            query = "What are the latest advancements in face analysis"
-            logger.info(f"\nTesting vector search for query: '{query}'")
-
-            results = engine.retrieve_simple_vector_search(query, top_k=3)
-            if results:
-                logger.info(f"Found {len(results)} results:")
-                for i, node in enumerate(results):
-                    logger.info(f"Result {i+1}:")
-                    logger.info(f"  Score: {node.score}")
-                    logger.info(f"  ArxivID: {node.metadata.get('arxiv_id', 'N/A')}")
-                    logger.info(f"  Title: {node.metadata.get('original_document_title', 'N/A')}")
-                    logger.info(f"  Text: {node.text[:150]}...")
-            else:
-                logger.warning("No results found. Check ChromaDB data and configuration")
-
-        except Exception as e:
-            logger.error(f"Test failed: {e}", exc_info=True)
-    else:
-        logger.info("Skipping test due to missing configuration")
-
-    logger.info("Test complete")
+    def insert_documents(self, documents: List[Document], show_progress: bool = False) -> None:
+        """Insert documents into the vector store.
+        
+        Args:
+            documents: List of LlamaIndex Document objects to insert
+            show_progress: Whether to show a progress bar (requires tqdm)
+        """
+        if not documents:
+            logger.warning("No documents provided for insertion")
+            return
+        
+        if not self._index:
+            logger.error("RetrievalEngine index not initialized")
+            raise ValueError("RetrievalEngine index not properly initialized")
+        
+        logger.info(f"Inserting {len(documents)} document(s) into collection: {self.collection_name}")
+        
+        if show_progress:
+            try:
+                from tqdm import tqdm
+                with tqdm(total=len(documents), desc="Inserting", unit="doc", leave=False) as pbar:
+                    for doc in documents:
+                        self._index.insert(document=doc)
+                        pbar.update(1)
+            except ImportError:
+                logger.warning("tqdm not available, inserting without progress bar")
+                for doc in documents:
+                    self._index.insert(document=doc)
+        else:
+            for doc in documents:
+                self._index.insert(document=doc)
+        
+        logger.info(f"Successfully inserted {len(documents)} document(s) into ChromaDB")

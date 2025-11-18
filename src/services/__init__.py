@@ -1,6 +1,6 @@
 """
 Services Module
 
-Services techniques réutilisables (LLM, storage, ingestion, evaluation).
+Reusable technical services (LLM, storage, ingestion, evaluation).
 """
 

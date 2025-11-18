@@ -1,4 +1,9 @@
-# makers/scripts/run_evaluation.py
+"""
+Evaluation CLI Runner
+
+Command-line interface for running RAG and synthesis evaluations.
+"""
+
 import argparse
 import asyncio
 import logging

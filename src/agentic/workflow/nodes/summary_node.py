@@ -10,7 +10,7 @@ from typing import Dict, Any
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from src.core.state import GraphState
+from src.agentic.workflow.state import GraphState
 from src.agentic.agents.agent import get_summary_llm
 
 logger = logging.getLogger(__name__)

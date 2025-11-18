@@ -1,4 +1,3 @@
-# makers/src/api/schemas.py
 """
 API Schemas Module
 
@@ -33,11 +32,6 @@ class MakersQueryRequest(BaseModel):
         description="The user query/question for the MAKERS system",
         min_length=1,
         max_length=1000
-    )
-    thread_id: Optional[str] = Field(
-        None,
-        description="Optional existing thread ID to continue a session",
-        pattern=r"^[a-zA-Z0-9_-]+$"
     )
     config: Optional[ConfigOverrides] = Field(
         None,
@@ -106,7 +100,7 @@ class MakersOutputMessage(BaseModel):
 
 class MakersResponse(BaseModel):
     """Complete response from the MAKERS system."""
-    thread_id: str = Field(..., description="Unique identifier for the conversation")
+    thread_id: Optional[str] = Field(None, description="Thread identifier (not exposed to users)")
     user_query: str = Field(..., description="Original user query")
     final_output: Optional[str] = Field(None, description="Final response from the agent")
     full_message_history: Optional[List[MakersOutputMessage]] = Field(
@@ -121,20 +115,6 @@ class ErrorResponse(BaseModel):
     detail: str = Field(..., description="Detailed error message")
 
 
-class ThreadSummary(BaseModel):
-    """Summary of a conversation thread."""
-    thread_id: str = Field(..., description="Unique identifier for the thread")
-    user_query: Optional[str] = Field(None, description="Original user query")
-    last_updated: Optional[str] = Field(None, description="Last update timestamp")
-    message_count: Optional[int] = Field(None, description="Number of messages in the thread")
-
-
-class ThreadListResponse(BaseModel):
-    """Response containing a list of threads."""
-    threads: List[ThreadSummary] = Field(..., description="List of thread summaries")
-    total: int = Field(..., description="Total number of threads")
-
-
 class HealthResponse(BaseModel):
     """Detailed health check response."""
     status: str = Field(..., description="Overall health status")
@@ -142,71 +122,3 @@ class HealthResponse(BaseModel):
     sqlite: str = Field(..., description="SQLite connection status")
     llm_provider: str = Field(..., description="Configured LLM provider")
     embedding_provider: str = Field(..., description="Configured embedding provider")
-
-
-class IngestionRequest(BaseModel):
-    """Request schema for document ingestion."""
-    pdf_dir: Optional[str] = Field(
-        None,
-        description="Path to directory containing PDF files (required if not downloading from ArXiv)"
-    )
-    download_from_arxiv: bool = Field(
-        False,
-        description="Download PDFs from ArXiv instead of using local directory"
-    )
-    query: Optional[str] = Field(
-        None,
-        description="Natural language query for ArXiv search and corpus naming"
-    )
-    arxiv_keywords: Optional[str] = Field(
-        None,
-        description="Optimized keywords for ArXiv search (e.g., 'machine learning AND neural networks')"
-    )
-    max_results: int = Field(
-        10,
-        description="Maximum papers to download from ArXiv",
-        ge=1,
-        le=100
-    )
-    sort_by: str = Field(
-        "Relevance",
-        description="Sort criterion for ArXiv results",
-        pattern="^(Relevance|LastUpdatedDate|SubmittedDate)$"
-    )
-    sort_order: str = Field(
-        "Descending",
-        description="Sort order for ArXiv results",
-        pattern="^(Ascending|Descending)$"
-    )
-    corpus_name: Optional[str] = Field(
-        None,
-        description="Specific corpus name (default: derived from query)"
-    )
-    collection_name: Optional[str] = Field(
-        None,
-        description="ChromaDB collection name (default: from settings)"
-    )
-    vector_index_name: Optional[str] = Field(
-        None,
-        description="Vector index name (default: from settings)"
-    )
-    text_index_name: Optional[str] = Field(
-        None,
-        description="Text index name (default: from settings)"
-    )
-    config: Optional[ConfigOverrides] = Field(
-        None,
-        description="Optional configuration overrides for ingestion"
-    )
-
-
-class IngestionResponse(BaseModel):
-    """Response schema for document ingestion."""
-    status: str = Field(..., description="Ingestion status")
-    corpus_name: str = Field(..., description="Name of the created corpus")
-    downloaded_count: int = Field(..., description="Number of documents downloaded/copied")
-    processed_count: int = Field(..., description="Number of documents processed")
-    embedded_count: int = Field(..., description="Number of chunks embedded")
-    stored_count: int = Field(..., description="Number of chunks stored in ChromaDB")
-    failed_count: int = Field(..., description="Number of failed operations")
-    message: Optional[str] = Field(None, description="Additional status message")

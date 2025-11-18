@@ -1,6 +1,6 @@
 """
 Evaluation Services
 
-Services d'évaluation : RAG evaluator, synthesis evaluator, metrics logger.
+Evaluation services: RAG evaluator, synthesis evaluator, metrics logger.
 """
 

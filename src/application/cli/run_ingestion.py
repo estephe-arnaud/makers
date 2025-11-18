@@ -1,4 +1,10 @@
-"""Document ingestion pipeline for MAKERS."""
+"""
+Document Ingestion Pipeline
+
+Command-line interface for ingesting documents into the MAKERS knowledge base.
+Supports downloading from ArXiv or processing local PDF files.
+"""
+
 import argparse
 import logging
 import re
@@ -15,18 +21,10 @@ from src.services.ingestion.arxiv_downloader import (
 )
 from src.services.ingestion.document_parser import parse_document_collection
 from src.services.ingestion.preprocessor import preprocess_parsed_documents
-from llama_index.core import Document, VectorStoreIndex
-from llama_index.core.settings import Settings as LlamaSettings
-from llama_index.vector_stores.chroma import ChromaVectorStore
-from llama_index.embeddings.openai import OpenAIEmbedding as LlamaOpenAIEmbedding
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding as LlamaHuggingFaceEmbedding
-from llama_index.embeddings.ollama import OllamaEmbedding as LlamaOllamaEmbedding
-import chromadb
-from tqdm import tqdm
-import os
+from llama_index.core import Document
+from src.services.storage.vector_store import RetrievalEngine
 
 logger = logging.getLogger(__name__)
-
 
 
 @dataclass
@@ -212,35 +210,20 @@ def process_documents(pdf_path: Path, metadata_path: Path) -> list:
 
 
 def setup_chromadb(config: IngestionConfig, chunks: list) -> None:
-    """Set up ChromaDB with chunks (embeddings are generated automatically)."""
+    """Set up ChromaDB with chunks using RetrievalEngine (embeddings are generated automatically)."""
     if not chunks:
         raise ValueError("No chunks to store in ChromaDB")
     
     logger.info("Setting up ChromaDB...")
     
-    chroma_db_path = settings.CHROMA_DB_PATH
-    chroma_db_path.mkdir(parents=True, exist_ok=True)
-    _configure_embedding_model()
-    
-    chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
-    chroma_collection = chroma_client.get_or_create_collection(
-        name=config.collection_name,
-        metadata={"hnsw:space": "cosine"}
+    # Initialize RetrievalEngine which handles all ChromaDB and embedding configuration
+    retrieval_engine = RetrievalEngine(
+        chroma_db_path=settings.CHROMA_DB_PATH,
+        collection_name=config.collection_name
     )
     
-    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-    
-    # Get the embedding model name based on the configured provider
-    embedding_provider = settings.DEFAULT_EMBEDDING_PROVIDER.lower()
-    if embedding_provider == "openai":
-        embedding_model_name = settings.OPENAI_EMBEDDING_MODEL_NAME
-    elif embedding_provider == "huggingface":
-        embedding_model_name = settings.HUGGINGFACE_EMBEDDING_MODEL_NAME
-    elif embedding_provider == "ollama":
-        embedding_model_name = settings.OLLAMA_EMBEDDING_MODEL_NAME
-    else:
-        embedding_model_name = "unknown"
-        logger.warning(f"Unknown embedding provider: {embedding_provider}, using 'unknown' as model name")
+    # Get the embedding model name for metadata
+    embedding_model_name = RetrievalEngine.get_embedding_model_name()
     
     # Convert chunks to LlamaIndex Documents
     documents = []
@@ -260,42 +243,10 @@ def setup_chromadb(config: IngestionConfig, chunks: list) -> None:
         )
         documents.append(doc)
     
-    logger.info(f"Inserting {len(documents)} chunk(s) into collection: {config.collection_name}")
+    # Insert documents using RetrievalEngine (with progress bar)
+    retrieval_engine.insert_documents(documents, show_progress=True)
     
-    index = VectorStoreIndex.from_vector_store(vector_store)
-    
-    with tqdm(total=len(documents), desc="Inserting", unit="doc", leave=False) as pbar:
-        for doc in documents:
-            index.insert(document=doc)
-            pbar.update(1)
-    
-    logger.info(f"Stored {len(documents)} chunk(s) in ChromaDB ({chroma_db_path})")
-
-
-def _configure_embedding_model() -> None:
-    """Configure the embedding model for LlamaIndex."""
-    provider = settings.DEFAULT_EMBEDDING_PROVIDER.lower()
-    
-    if provider == "openai":
-        if not settings.OPENAI_API_KEY:
-            raise ValueError("OpenAI API key is missing")
-        LlamaSettings.embed_model = LlamaOpenAIEmbedding(
-            api_key=settings.OPENAI_API_KEY,
-            model=settings.OPENAI_EMBEDDING_MODEL_NAME
-        )
-    elif provider == "huggingface":
-        LlamaSettings.embed_model = LlamaHuggingFaceEmbedding(
-            model_name=settings.HUGGINGFACE_EMBEDDING_MODEL_NAME
-        )
-    elif provider == "ollama":
-        if not settings.OLLAMA_BASE_URL:
-            raise ValueError("Ollama base URL is missing")
-        LlamaSettings.embed_model = LlamaOllamaEmbedding(
-            model_name=settings.OLLAMA_EMBEDDING_MODEL_NAME,
-            base_url=settings.OLLAMA_BASE_URL
-        )
-    else:
-        raise ValueError(f"Unsupported embedding provider: {provider}")
+    logger.info(f"Stored {len(documents)} chunk(s) in ChromaDB ({settings.CHROMA_DB_PATH})")
 
 def main():
     """Main entry point for the ingestion pipeline."""

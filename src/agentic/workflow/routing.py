@@ -7,8 +7,8 @@ Determines the next step in the workflow based on the current state.
 import logging
 from typing import Dict, Any
 
-from src.core.state import GraphState
-from src.core.constants import SUMMARY_THRESHOLD
+from src.agentic.workflow.state import GraphState
+from src.agentic.workflow.constants import SUMMARY_THRESHOLD
 
 logger = logging.getLogger(__name__)
 

@@ -176,16 +176,15 @@ The system uses a **modular Tool Registry** pattern:
 
 ```
 src/
-├── core/            # Core foundations (state, constants)
 ├── services/        # Reusable technical services
 │   ├── llm.py       # LLM factory (OpenAI, HuggingFace, Ollama, Groq, Google Gemini)
 │   ├── storage/     # ChromaDB (vector store), SQLite (checkpoints), Checkpointer
 │   ├── ingestion/   # Data ingestion pipeline
 │   └── evaluation/  # Evaluation services (RAG, synthesis)
 ├── agentic/         # Agentic system
-│   ├── agents/      # Agents and prompts (plural for scalability)
+│   ├── agents/      # Agents, prompts, and constants
 │   ├── tools/       # Tools with registry pattern
-│   └── workflow/    # LangGraph workflow (graph, runner, nodes, routing)
+│   └── workflow/    # LangGraph workflow (graph, runner, nodes, routing, state, constants)
 └── application/     # User interfaces
     ├── api/         # FastAPI REST API
     └── cli/         # Command-line interface scripts

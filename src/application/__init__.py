@@ -1,6 +1,6 @@
 """
 Application Module
 
-Interfaces utilisateur : API et CLI.
+User interfaces: API and CLI.
 """
 

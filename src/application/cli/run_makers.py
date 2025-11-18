@@ -1,4 +1,9 @@
-# makers/scripts/run_makers.py
+"""
+MAKERS CLI Runner
+
+Command-line interface for running the MAKERS research workflow.
+"""
+
 import argparse
 import asyncio
 import logging

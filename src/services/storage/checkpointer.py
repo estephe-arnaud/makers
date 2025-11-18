@@ -1,6 +1,9 @@
-# src/graph/checkpointer.py
+"""
+Checkpointer Module
 
-"""Checkpointer for LangGraph workflows using SQLite."""
+Provides SQLite-based checkpointing for LangGraph workflows.
+Supports both async and sync checkpointer implementations.
+"""
 import logging
 import sqlite3
 import aiosqlite
