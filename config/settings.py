@@ -78,8 +78,26 @@ class Settings(BaseSettings):
     OLLAMA_EMBEDDING_MODEL_DIMENSION: int = 768
 
     # --- Data Processing Configuration ---
-    CHUNK_SIZE: int = 1000
-    CHUNK_OVERLAP: int = 200
+    CHUNK_SIZE: int = 512  # Optimal for embedding models: better semantic precision, less information dilution
+    CHUNK_OVERLAP: int = 100  # ~20% overlap for context preservation between chunks
+
+    # --- Agentic Workflow Configuration ---
+    # Summary and Memory Management
+    SUMMARY_THRESHOLD: int = 15  # Number of messages before triggering summarization (more frequent = better memory management)
+    MESSAGES_TO_KEEP_AFTER_SUMMARY: int = 3  # Number of recent messages to keep after summarization
+    
+    # Workflow Safety
+    MAX_ITERATIONS: int = 100  # Maximum iterations to prevent infinite loops (higher for complex workflows)
+    
+    # LLM Temperature Settings
+    AGENT_TEMPERATURE: float = 0.3  # Main agent: balanced creativity and accuracy
+    SUMMARY_LLM_TEMPERATURE: float = 0.1  # Summary agent: low temperature for factual consistency
+    DOCUMENT_ANALYST_TEMPERATURE: float = 0.2  # Document analyst: low temperature for analytical precision
+    DOCUMENT_SYNTHESIZER_TEMPERATURE: float = 0.4  # Document synthesizer: higher temperature for creative synthesis
+    
+    # RAG Configuration
+    RAG_TOP_K: int = 5  # Number of top results to retrieve from knowledge base
+    RAG_SIMILARITY_THRESHOLD: float = 0.0  # Minimum similarity score threshold (0.0 = no threshold)
 
     # --- ArXiv Configuration ---
     DATA_DIR: Path = Path(__file__).resolve().parent.parent / "data"
@@ -147,3 +165,18 @@ if __name__ == "__main__":
     print("\n--- Data & Paths ---")
     print(f"Data Directory: {settings.DATA_DIR}")
     print(f"Evaluation Dataset: {settings.EVALUATION_DATASET_PATH}")
+    
+    print("\n--- Agentic Workflow Configuration ---")
+    print(f"Summary Threshold: {settings.SUMMARY_THRESHOLD} messages")
+    print(f"Messages to Keep After Summary: {settings.MESSAGES_TO_KEEP_AFTER_SUMMARY}")
+    print(f"Max Iterations: {settings.MAX_ITERATIONS}")
+    print(f"Agent Temperature: {settings.AGENT_TEMPERATURE}")
+    print(f"Summary LLM Temperature: {settings.SUMMARY_LLM_TEMPERATURE}")
+    print(f"Document Analyst Temperature: {settings.DOCUMENT_ANALYST_TEMPERATURE}")
+    print(f"Document Synthesizer Temperature: {settings.DOCUMENT_SYNTHESIZER_TEMPERATURE}")
+    print(f"RAG Top K: {settings.RAG_TOP_K}")
+    print(f"RAG Similarity Threshold: {settings.RAG_SIMILARITY_THRESHOLD}")
+    
+    print("\n--- Data Processing Configuration ---")
+    print(f"Chunk Size: {settings.CHUNK_SIZE} tokens")
+    print(f"Chunk Overlap: {settings.CHUNK_OVERLAP} tokens")

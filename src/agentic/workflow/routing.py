@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any
 
 from src.agentic.workflow.state import GraphState
-from src.agentic.workflow.constants import SUMMARY_THRESHOLD
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def should_summarize(state: GraphState) -> bool:
     """Determine if conversation should be summarized based on message count."""
     message_count = len(state.get("messages", []))
-    return message_count >= SUMMARY_THRESHOLD
+    return message_count >= settings.SUMMARY_THRESHOLD
 
 
 def route_after_agent(state: GraphState) -> str:
@@ -37,7 +37,7 @@ def route_after_agent(state: GraphState) -> str:
 def route_after_tool(state: GraphState) -> str:
     """Route after tool node: decide whether to summarize or continue to agent."""
     if should_summarize(state):
-        logger.info(f"Message count ({len(state.get('messages', []))}) >= threshold ({SUMMARY_THRESHOLD}), summarizing...")
+        logger.info(f"Message count ({len(state.get('messages', []))}) >= threshold ({settings.SUMMARY_THRESHOLD}), summarizing...")
         return "summarize"
     return "agent"
 

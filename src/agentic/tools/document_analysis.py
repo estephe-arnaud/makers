@@ -21,7 +21,6 @@ except ImportError:
     Agent = Task = Crew = Process = None  # Type stubs for when crewai is not installed
 
 from src.services.llm import get_llm
-from src.agentic.agents.constants import DOCUMENT_ANALYST_TEMPERATURE, DOCUMENT_SYNTHESIZER_TEMPERATURE
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -74,9 +73,9 @@ class DocumentAnalysisService:
         
         try:
             # Deep Document Analyst: Lower temperature for analytical precision and factual accuracy
-            self.llm_analyst = get_llm(temperature=DOCUMENT_ANALYST_TEMPERATURE)
+            self.llm_analyst = get_llm(temperature=settings.DOCUMENT_ANALYST_TEMPERATURE)
             # Research Report Synthesizer: Higher temperature for creative synthesis and narrative flow
-            self.llm_synthesizer = get_llm(temperature=DOCUMENT_SYNTHESIZER_TEMPERATURE)
+            self.llm_synthesizer = get_llm(temperature=settings.DOCUMENT_SYNTHESIZER_TEMPERATURE)
         except ValueError as e:
             logger.error(f"Failed to initialize LLM: {e}")
             logger.warning("Falling back to CrewAI's default LLM if OPENAI_API_KEY is set")

@@ -10,7 +10,7 @@ from typing import Dict, Any
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from src.agentic.workflow.state import GraphState
-from src.agentic.workflow.constants import MAX_ITERATIONS
+from config.settings import settings
 from src.agentic.agents.agent import get_agent
 from src.agentic.agents.prompts import AGENT_SYSTEM_PROMPT
 
@@ -40,13 +40,13 @@ async def agent_node(state: GraphState) -> Dict[str, Any]:
     
     # Check iteration limit to prevent infinite loops
     iteration_count = state.get("iteration_count", 0) + 1
-    if iteration_count > MAX_ITERATIONS:
-        logger.error(f"Maximum iterations ({MAX_ITERATIONS}) reached. Terminating workflow.")
+    if iteration_count > settings.MAX_ITERATIONS:
+        logger.error(f"Maximum iterations ({settings.MAX_ITERATIONS}) reached. Terminating workflow.")
         return {
             "messages": [AIMessage(content="Maximum iterations reached. The workflow has been terminated to prevent infinite loops.")],
             "final_output": "Maximum iterations reached. Please try a more specific query or contact support.",
             "next_action": "final_answer",
-            "error_message": f"Maximum iterations ({MAX_ITERATIONS}) exceeded",
+            "error_message": f"Maximum iterations ({settings.MAX_ITERATIONS}) exceeded",
             "iteration_count": iteration_count,
         }
     

@@ -14,8 +14,8 @@ RUN pip install --upgrade pip && \
 WORKDIR /app
 COPY poetry.lock pyproject.toml ./
 
-# Install dependencies
-RUN poetry install --no-root --no-dev --sync
+# Install dependencies (--only=main excludes dev dependencies)
+RUN poetry install --no-root --only=main --sync
 
 # --- Stage 2: Final application image ---
 FROM python:3.11-slim

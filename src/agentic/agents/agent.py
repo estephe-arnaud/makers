@@ -8,7 +8,7 @@ from langchain_core.language_models import BaseLanguageModel
 
 from src.agentic.tools import get_all_tools
 from src.services.llm import get_llm
-from src.agentic.agents.constants import AGENT_TEMPERATURE, SUMMARY_LLM_TEMPERATURE
+from config.settings import settings
 
 
 def get_agent():
@@ -22,7 +22,7 @@ def get_agent():
     Returns:
         A configured LLM instance with tools bound, ready for tool call generation.
     """
-    agent_llm = get_llm(temperature=AGENT_TEMPERATURE)
+    agent_llm = get_llm(temperature=settings.AGENT_TEMPERATURE)
     agent_tools = get_all_tools()
     agent = agent_llm.bind_tools(agent_tools)
     return agent
@@ -37,5 +37,5 @@ def get_summary_llm() -> BaseLanguageModel:
     Returns:
         A configured LLM instance for summarization.
     """
-    return get_llm(temperature=SUMMARY_LLM_TEMPERATURE)
+    return get_llm(temperature=settings.SUMMARY_LLM_TEMPERATURE)
 

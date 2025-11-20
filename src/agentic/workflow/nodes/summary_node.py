@@ -12,6 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from src.agentic.workflow.state import GraphState
 from src.agentic.agents.agent import get_summary_llm
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,8 @@ async def summary_node(state: GraphState) -> Dict[str, Any]:
         
         # Keep only the last few messages (for immediate context)
         # This prevents complete loss of recent context
-        recent_messages = messages_to_summarize[-3:] if len(messages_to_summarize) > 3 else messages_to_summarize
+        messages_to_keep = settings.MESSAGES_TO_KEEP_AFTER_SUMMARY
+        recent_messages = messages_to_summarize[-messages_to_keep:] if len(messages_to_summarize) > messages_to_keep else messages_to_summarize
         
         return {
             "conversation_summary": new_summary,

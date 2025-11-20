@@ -21,86 +21,35 @@
 
 The system implements a **multi-node LangGraph workflow** with separated concerns for agent reasoning, tool execution, and memory management:
 
-```
-╔═══════════════════════════════════════════════════════════════════════════╗
-║                      USER REQUEST (CLI/API)                               ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-                                      │
-                                      ▼
-╔═══════════════════════════════════════════════════════════════════════════╗
-║                    LANGGRAPH WORKFLOW                                     ║
-║         StateGraph with SQLite Checkpointing                               ║
-╠═══════════════════════════════════════════════════════════════════════════╣
-║                                                                           ║
-║  ╔═════════════════════════════════════════════════════════════════════╗  ║
-║  ║                      AGENT NODE                                     ║  ║
-║  ║                    (Entry Point)                                    ║  ║
-║  ╠═════════════════════════════════════════════════════════════════════╣  ║
-║  ║    Input:                                                           ║  ║
-║  ║     • conversation_summary (long-term memory)                       ║  ║
-║  ║     • recent messages (last 3, immediate context)                   ║  ║
-║  ║                                                                     ║  ║
-║  ║    Process:                                                         ║  ║
-║  ║     • ReAct Agent analyzes context                                  ║  ║
-║  ║     • Decision: tool_calls OR final_answer                          ║  ║
-║  ║                                                                     ║  ║
-║  ║    Output:                                                          ║  ║
-║  ║     • AIMessage with tool_calls[] OR content (final answer)         ║  ║
-║  ╚═════════════════════════════════════════════════════════════════════╝  ║
-║                              │                                            ║
-║                              │ route_after_agent                          ║
-║                              │                                            ║
-║              ┌───────────────┴───────────────┐                            ║
-║              │                               │                            ║
-║              ▼                               ▼                            ║
-║  ╔═══════════════════════╗      ╔═══════════════════════╗                 ║
-║  ║      TOOL NODE        ║      ║         END           ║                 ║
-║  ║   (if tool_calls)     ║      ║   (if final_answer)   ║                 ║
-║  ╠═══════════════════════╣      ╠═══════════════════════╣                 ║
-║  ║  • Extract tool_calls ║      ║  • Return final_state ║                 ║
-║  ║  • Get from Registry  ║      ║  • Output: final_     ║                 ║
-║  ║  • Execute tools:     ║      ║    output             ║                 ║
-║  ║    - arxiv_search     ║      ╚═══════════════════════╝                 ║
-║  ║    - knowledge_base   ║                                                ║
-║  ║    - document_analysis║                                                ║
-║  ║  • Return ToolMessage ║                                                ║
-║  ╚═══════════════════════╝                                                ║
-║              │                                                            ║
-║              │ route_after_tool                                           ║
-║              │                                                            ║
-║              └───────────┬───────────────┐                                ║
-║                          │               │                                ║
-║                          ▼               ▼                                ║
-║          ╔═══════════════════════╗  ╔═══════════════════════╗             ║
-║          ║     SUMMARY NODE      ║  ║      AGENT NODE       ║             ║
-║          ║   (if msg_count ≥ 20) ║  ║   (if msg_count < 20) ║             ║
-║          ╠═══════════════════════╣  ╠═══════════════════════╣             ║
-║          ║  • Take: messages +   ║  ║  • Continue workflow  ║             ║
-║          ║    existing summary   ║  ║  • Process tool       ║             ║
-║          ║  • Generate condensed ║  ║    results            ║             ║
-║          ║    summary            ║  ║                       ║             ║
-║          ║  • Preserve findings  ║  ║                       ║             ║
-║          ║  • Clear old msgs     ║  ║                       ║             ║
-║          ║  • Keep last 3 msgs   ║  ║                       ║             ║
-║          ╚═══════════════════════╝  ╚═══════════════════════╝             ║
-║                      │                                                    ║
-║                      │ route_after_summary                                ║
-║                      │                                                    ║
-║                      └───────────┬                                        ║
-║                                  │                                        ║
-║                                  ▼                                        ║
-║                          ╔═══════════════╗                                ║
-║                          ║   AGENT NODE  ║                                ║
-║                          ║  (Loop back)  ║                                ║
-║                          ╚═══════════════╝                                ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-                                      │
-                                      ▼
-                          ╔═══════════════════════╗
-                          ║      FINAL OUTPUT     ║
-                          ║  GraphState with      ║
-                          ║  final_output         ║
-                          ╚═══════════════════════╝
+```mermaid
+flowchart TB
+    Start([👤 User Request<br/>CLI/API]) --> AgentNode
+    
+    subgraph Workflow["🔄 LangGraph Workflow<br/>StateGraph with SQLite Checkpointing"]
+        AgentNode["🤖 Agent Node<br/>━━━━━━━━━━━━━━━━<br/>📥 Input:<br/>• conversation_summary<br/>• recent messages<br/><br/>⚙️ Process:<br/>• ReAct Agent analysis<br/>• Decision making<br/><br/>📤 Output:<br/>• AIMessage with tool_calls<br/>OR final_answer"]
+        
+        AgentNode -->|"tool_calls detected"| ToolNode
+        AgentNode -->|"final_answer"| EndNode
+        
+        ToolNode["🛠️ Tool Node<br/>━━━━━━━━━━━━━━━━<br/>📥 Extract tool_calls<br/>🔍 Get tools from Registry<br/>⚙️ Execute:<br/>• arxiv_search<br/>• knowledge_base<br/>• document_analysis<br/>📤 Return ToolMessage"]
+        
+        ToolNode -->|"msg_count ≥ 15"| SummaryNode
+        ToolNode -->|"msg_count < 15"| AgentNode
+        
+        SummaryNode["📝 Summary Node<br/>━━━━━━━━━━━━━━━━<br/>📥 messages + summary<br/>⚙️ Generate condensed summary<br/>🧹 Clear old messages<br/>💾 Keep last 3 messages<br/>📤 Updated summary"]
+        
+        SummaryNode -->|"route_after_summary"| AgentNode
+    end
+    
+    EndNode["✅ End Node<br/>━━━━━━━━━━━━━━━━<br/>📤 Return final_state<br/>with final_output"] --> Final([📊 Final Output<br/>GraphState])
+    
+    style Start fill:#e1f5ff,stroke:#01579b,stroke-width:3px
+    style Final fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style AgentNode fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style ToolNode fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style SummaryNode fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    style EndNode fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style Workflow fill:#fafafa,stroke:#424242,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
 ### Key Components
@@ -110,7 +59,7 @@ The system implements a **multi-node LangGraph workflow** with separated concern
    - **Process**: ReAct agent (LangChain) analyzes context and decides on action
    - **Output**: `AIMessage` with `tool_calls` (list) OR `content` (final answer string)
    - **State Updates**: `messages`, `next_action`, `final_output`, `iteration_count`
-   - **Safety**: Maximum iteration limit (50) to prevent infinite loops
+   - **Safety**: Maximum iteration limit (100) to prevent infinite loops
 
 2. **Tool Node** (`agentic/workflow/nodes/tool_node.py`):
    - **Input**: `messages` (extracts `tool_calls` from last `AIMessage`)
@@ -119,10 +68,10 @@ The system implements a **multi-node LangGraph workflow** with separated concern
    - **Note**: `document_deep_dive_analysis_tool` is not used for security reasons (prevents automatic PDF downloads)
    - **Output**: `ToolMessage` list with execution results
    - **Error Handling**: Graceful failure with error messages in `ToolMessage`
-   - **Next Step**: Always routes to either `summarize` (if message_count >= 20) or `agent` (continue)
+   - **Next Step**: Always routes to either `summarize` (if message_count >= 15) or `agent` (continue)
 
 3. **Summary Node** (`agentic/workflow/nodes/summary_node.py`):
-   - **Trigger**: Only after `tool_node` when `len(messages) >= SUMMARY_THRESHOLD` (20 messages)
+   - **Trigger**: Only after `tool_node` when `len(messages) >= SUMMARY_THRESHOLD` (15 messages)
    - **Input**: Recent messages + existing `conversation_summary`
    - **Process**: LLM-based summarization (temperature: 0.1 for factual accuracy)
    - **Output**: Condensed summary preserving key findings
@@ -131,11 +80,11 @@ The system implements a **multi-node LangGraph workflow** with separated concern
 
 4. **Routing Logic** (`agentic/workflow/routing.py`):
    - **route_after_agent**: Routes to `tool` (if tool_calls), `continue` (if unclear), or `end` (if final_answer)
-   - **route_after_tool**: Routes to `summarize` (if message_count >= 20) or `agent` (if message_count < 20)
+   - **route_after_tool**: Routes to `summarize` (if message_count >= 15) or `agent` (if message_count < 15)
    - **route_after_summary**: Always routes back to `agent` with updated summary
    - **Note**: Summary node can only be reached after tool node execution, never in parallel
 
-5. **State Management** (`core/state.py`):
+5. **State Management** (`agentic/workflow/state.py`):
    - **GraphState**: TypedDict with `messages`, `conversation_summary`, `user_query`, `final_output`, `next_action`, `error_message`, `iteration_count`
    - **Checkpointing**: SQLite-based persistence via `services/storage/checkpointer.py`
    - **Resumability**: Thread-based state recovery for long-running sessions
@@ -211,37 +160,7 @@ src/
    cp .env.example .env
    ```
    
-          Edit `.env`:
-          ```env
-          # LLM Provider (default: Groq - unlimited/free tier)
-          DEFAULT_LLM_MODEL_PROVIDER=groq
-          GROQ_API_KEY=your_groq_api_key_here
-          GROQ_MODEL_NAME=llama-3.3-70b-versatile
-          
-          # Embedding Provider (default: HuggingFace - local, unlimited, free)
-          DEFAULT_EMBEDDING_PROVIDER=huggingface
-          HUGGINGFACE_EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
-          
-          # Alternative LLM Providers:
-          # DEFAULT_LLM_MODEL_PROVIDER=google
-          # GOOGLE_API_KEY=your_google_api_key_here
-          # GOOGLE_GEMINI_MODEL_NAME=gemini-pro
-          
-          # DEFAULT_LLM_MODEL_PROVIDER=openai
-          # OPENAI_API_KEY=your_key_here
-          
-          # DEFAULT_LLM_MODEL_PROVIDER=ollama
-          # OLLAMA_BASE_URL=http://localhost:11434
-          
-          # Alternative Embedding Providers:
-          # DEFAULT_EMBEDDING_PROVIDER=ollama
-          # OLLAMA_EMBEDDING_MODEL_NAME=nomic-embed-text
-          # OLLAMA_BASE_URL=http://localhost:11434
-          
-          # DEFAULT_EMBEDDING_PROVIDER=openai
-          # OPENAI_API_KEY=your_key_here
-          # OPENAI_EMBEDDING_MODEL_NAME=text-embedding-3-small
-          ```
+   Edit `.env`.
 
 3. **Install dependencies**:
    ```bash
@@ -347,23 +266,41 @@ curl -X POST "http://localhost:8000/invoke_makers" \
 
 ## 🐳 Docker
 
-Build and run with Docker:
+### Docker Compose
 
 ```bash
-# Build image
-docker build -t makers-app .
+# Start all services
+docker-compose up -d
 
-# Run CLI
-docker run -e OPENAI_API_KEY=$OPENAI_API_KEY \
-           makers-app \
-           python -m src.application.cli.run_makers --query "What are the latest advancements in face analysis"
+# Stop services
+docker-compose down
 
-# Run API server
-docker run -p 127.0.0.1:8000:8000 \
-           -e OPENAI_API_KEY=$OPENAI_API_KEY \
-           makers-app \
-           uvicorn src.application.api.main:app --host 0.0.0.0 --port 8000
+# View logs
+docker-compose logs -f
 ```
+
+**Services:**
+- `cli`: CLI commands
+- `api`: FastAPI on http://localhost:8000
+
+**CLI Usage Examples:**
+
+```bash
+# Use run --rm for CLI commands (creates a temporary container):
+
+docker-compose run --rm cli python -m src.application.cli.run_makers \
+  --query "What are the latest advancements in face analysis"
+
+docker-compose run --rm cli python -m src.application.cli.run_ingestion \
+  --pdf_dir /app/data/corpus/face_analysis/pdfs
+
+docker-compose run --rm cli python -m src.application.cli.run_evaluation \
+  --eval_type all
+```
+
+**API Access:**
+- API: http://localhost:8000
+- Swagger UI: http://localhost:8000/docs
 
 ## 📄 License
 
