@@ -151,7 +151,7 @@ src/
 
 1. **Clone repository**:
    ```bash
-   git clone https://github.com/estephe-arnaud/makers
+   git clone https://github.com/mlarnes/makers
    cd makers
    ```
 
