@@ -54,14 +54,14 @@ flowchart TB
 
 ### Key Components
 
-1. **Agent Node** (`agentic/workflow/nodes/agent_node.py`):
+1. **Agent Node** (`core/workflow/nodes/agent_node.py`):
    - **Input**: `conversation_summary` (string, long-term memory) + `messages` (list, recent context)
    - **Process**: ReAct agent (LangChain) analyzes context and decides on action
    - **Output**: `AIMessage` with `tool_calls` (list) OR `content` (final answer string)
    - **State Updates**: `messages`, `next_action`, `final_output`, `iteration_count`
    - **Safety**: Maximum iteration limit (100) to prevent infinite loops
 
-2. **Tool Node** (`agentic/workflow/nodes/tool_node.py`):
+2. **Tool Node** (`core/workflow/nodes/tool_node.py`):
    - **Input**: `messages` (extracts `tool_calls` from last `AIMessage`)
    - **Process**: Retrieves tools from `ToolRegistry`, executes each tool call
    - **Tools Available**: `arxiv_search_tool`, `knowledge_base_retrieval_tool`
@@ -70,7 +70,7 @@ flowchart TB
    - **Error Handling**: Graceful failure with error messages in `ToolMessage`
    - **Next Step**: Always routes to either `summarize` (if message_count >= 15) or `agent` (continue)
 
-3. **Summary Node** (`agentic/workflow/nodes/summary_node.py`):
+3. **Summary Node** (`core/workflow/nodes/summary_node.py`):
    - **Trigger**: Only after `tool_node` when `len(messages) >= SUMMARY_THRESHOLD` (15 messages)
    - **Input**: Recent messages + existing `conversation_summary`
    - **Process**: LLM-based summarization (temperature: 0.1 for factual accuracy)
@@ -78,13 +78,13 @@ flowchart TB
    - **Memory Management**: Clears old messages, keeps last 3 for immediate context
    - **Next Step**: Always routes back to `agent` with updated summary
 
-4. **Routing Logic** (`agentic/workflow/routing.py`):
+4. **Routing Logic** (`core/workflow/routing.py`):
    - **route_after_agent**: Routes to `tool` (if tool_calls), `continue` (if unclear), or `end` (if final_answer)
    - **route_after_tool**: Routes to `summarize` (if message_count >= 15) or `agent` (if message_count < 15)
    - **route_after_summary**: Always routes back to `agent` with updated summary
    - **Note**: Summary node can only be reached after tool node execution, never in parallel
 
-5. **State Management** (`agentic/workflow/state.py`):
+5. **State Management** (`core/workflow/state.py`):
    - **GraphState**: TypedDict with `messages`, `conversation_summary`, `user_query`, `final_output`, `next_action`, `error_message`, `iteration_count`
    - **Checkpointing**: SQLite-based persistence via `services/storage/checkpointer.py`
    - **Resumability**: Thread-based state recovery for long-running sessions
@@ -92,7 +92,7 @@ flowchart TB
 ### Tool Registry Architecture
 
 The system uses a **modular Tool Registry** pattern:
-- Tools are registered in `src/agentic/tools/registry.py`
+- Tools are registered in `src/core/tools/registry.py`
 - `tool_node.py` retrieves tools dynamically (no hardcoding)
 - Easy to add/remove tools without modifying workflow code
 
@@ -130,7 +130,7 @@ src/
 │   ├── storage/     # ChromaDB (vector store), SQLite (checkpoints), Checkpointer
 │   ├── ingestion/   # Data ingestion pipeline
 │   └── evaluation/  # Evaluation services (RAG, synthesis)
-├── agentic/         # Agentic system
+├── core/            # Core system
 │   ├── agents/      # Agents, prompts, and constants
 │   ├── tools/       # Tools with registry pattern
 │   └── workflow/    # LangGraph workflow (graph, runner, nodes, routing, state, constants)

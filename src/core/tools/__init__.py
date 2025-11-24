@@ -4,12 +4,12 @@ Tools Module
 Exports all available tools for the agent.
 """
 
-from src.agentic.tools.arxiv import arxiv_search_tool
-from src.agentic.tools.knowledge_base import knowledge_base_retrieval_tool
+from src.core.tools.arxiv import arxiv_search_tool
+from src.core.tools.knowledge_base import knowledge_base_retrieval_tool
 # Note: document_deep_dive_analysis_tool is kept in the codebase but not registered
 # for security reasons (prevents automatic PDF downloads from URLs)
-# from src.agentic.tools.document_analysis import document_deep_dive_analysis_tool
-from src.agentic.tools.registry import ToolRegistry
+# from src.core.tools.document_analysis import document_deep_dive_analysis_tool
+from src.core.tools.registry import ToolRegistry
 
 # Auto-register all tools in the registry
 ToolRegistry.register("arxiv_search_tool", arxiv_search_tool)

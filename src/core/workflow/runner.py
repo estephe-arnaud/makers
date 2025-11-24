@@ -10,8 +10,8 @@ from typing import Optional, Dict, Any
 
 from langchain_core.messages import HumanMessage
 
-from src.agentic.workflow.graph import get_app
-from src.agentic.agents.utils import get_agent_output
+from src.core.workflow.graph import get_app
+from src.core.agents.utils import get_agent_output
 
 logger = logging.getLogger(__name__)
 

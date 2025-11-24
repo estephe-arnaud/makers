@@ -6,7 +6,7 @@ Initializes and configures the autonomous agent for the workflow.
 
 from langchain_core.language_models import BaseLanguageModel
 
-from src.agentic.tools import get_all_tools
+from src.core.tools import get_all_tools
 from src.services.llm import get_llm
 from config.settings import settings
 

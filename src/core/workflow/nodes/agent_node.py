@@ -9,10 +9,10 @@ from typing import Dict, Any
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from src.agentic.workflow.state import GraphState
+from src.core.workflow.state import GraphState
 from config.settings import settings
-from src.agentic.agents.agent import get_agent
-from src.agentic.agents.prompts import AGENT_SYSTEM_PROMPT
+from src.core.agents.agent import get_agent
+from src.core.agents.prompts import AGENT_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 

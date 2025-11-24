@@ -7,7 +7,7 @@ Determines the next step in the workflow based on the current state.
 import logging
 from typing import Dict, Any
 
-from src.agentic.workflow.state import GraphState
+from src.core.workflow.state import GraphState
 from config.settings import settings
 
 logger = logging.getLogger(__name__)

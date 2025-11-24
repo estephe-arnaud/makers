@@ -6,9 +6,9 @@ Creates and configures the LangGraph workflow.
 
 from langgraph.graph import StateGraph, END
 
-from src.agentic.workflow.state import GraphState
-from src.agentic.workflow.nodes import agent_node, tool_node, summary_node
-from src.agentic.workflow.routing import route_after_agent, route_after_tool, route_after_summary
+from src.core.workflow.state import GraphState
+from src.core.workflow.nodes import agent_node, tool_node, summary_node
+from src.core.workflow.routing import route_after_agent, route_after_tool, route_after_summary
 
 
 def create_workflow_graph(checkpointer=None) -> StateGraph:

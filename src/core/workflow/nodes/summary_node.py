@@ -10,8 +10,8 @@ from typing import Dict, Any
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from src.agentic.workflow.state import GraphState
-from src.agentic.agents.agent import get_summary_llm
+from src.core.workflow.state import GraphState
+from src.core.agents.agent import get_summary_llm
 from config.settings import settings
 
 logger = logging.getLogger(__name__)

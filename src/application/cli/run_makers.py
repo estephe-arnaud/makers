@@ -12,7 +12,7 @@ from typing import Optional
 
 from config.settings import settings
 from config.logging_config import setup_logging
-from src.agentic.workflow.runner import run_workflow
+from src.core.workflow.runner import run_workflow
 
 logger = logging.getLogger(__name__)
 
